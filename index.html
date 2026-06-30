@@ -480,6 +480,25 @@
   </main>
 
   <!-- ══════════════════════════════════════════════
+       CONTROLES FLOTANTES — MODO ENFOQUE
+  ══════════════════════════════════════════════ -->
+  <div id="focus-controls" class="focus-controls" aria-label="Controles de modo enfoque" hidden>
+    <button id="btn-focus-autoscroll" class="focus-ctrl-btn" aria-pressed="false"
+            title="Auto-Scroll automático">
+      <span class="focus-ctrl-icon" aria-hidden="true">▶</span>
+    </button>
+    <div class="focus-speed">
+      <button id="btn-focus-speed-down" class="focus-speed-btn" aria-label="Reducir velocidad">−</button>
+      <span id="focus-speed-display" class="focus-speed-val" aria-live="polite">×3</span>
+      <button id="btn-focus-speed-up" class="focus-speed-btn" aria-label="Aumentar velocidad">+</button>
+    </div>
+    <button id="btn-focus-exit" class="focus-ctrl-btn focus-exit-btn"
+            title="Salir del modo enfoque (ESC)" aria-label="Salir del modo enfoque">
+      <span aria-hidden="true">✕</span>
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════════
        TOAST / NOTIFICATION AREA
   ══════════════════════════════════════════════ -->
   <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>

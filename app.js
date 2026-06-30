@@ -805,14 +805,46 @@ function initFocusMode() {
       toggleFocusMode();
     }
   });
+
+  // Controles flotantes del modo enfoque
+  document.getElementById('btn-focus-exit').addEventListener('click', toggleFocusMode);
+
+  document.getElementById('btn-focus-autoscroll').addEventListener('click', () => {
+    state.autoScrollActive ? stopAutoScroll() : startAutoScroll();
+  });
+
+  document.getElementById('btn-focus-speed-up').addEventListener('click', () => {
+    setScrollSpeed(state.scrollSpeed + 1);
+  });
+  document.getElementById('btn-focus-speed-down').addEventListener('click', () => {
+    setScrollSpeed(state.scrollSpeed - 1);
+  });
+
+  updateFocusSpeedDisplay();
+}
+
+function setScrollSpeed(value) {
+  state.scrollSpeed = Math.max(1, Math.min(10, value));
+  const range = document.getElementById('scroll-speed-range');
+  if (range) range.value = state.scrollSpeed;
+  document.getElementById('scroll-speed-display').textContent = `×${state.scrollSpeed}`;
+  updateFocusSpeedDisplay();
+  if (state.autoScrollActive) { stopAutoScroll(); startAutoScroll(); }
+}
+
+function updateFocusSpeedDisplay() {
+  const el = document.getElementById('focus-speed-display');
+  if (el) el.textContent = `×${state.scrollSpeed}`;
 }
 
 function toggleFocusMode() {
   const isActive = document.body.classList.toggle('focus-mode');
   const btn = document.getElementById('btn-focus-mode');
-  btn.querySelector('span').textContent = isActive ? '⛶' : '⛶';
   btn.title = isActive ? 'Salir del modo enfoque (ESC)' : 'Modo enfoque';
   btn.classList.toggle('active', isActive);
+
+  document.getElementById('focus-controls').hidden = !isActive;
+  updateFocusSpeedDisplay();
 }
 
 function initNotesToggle() {
@@ -866,6 +898,13 @@ function startAutoScroll() {
   btn.setAttribute('aria-pressed', 'true');
   btn.querySelector('.btn-icon').textContent = '⏸';
 
+  const fbtn = document.getElementById('btn-focus-autoscroll');
+  if (fbtn) {
+    fbtn.classList.add('active');
+    fbtn.setAttribute('aria-pressed', 'true');
+    fbtn.querySelector('.focus-ctrl-icon').textContent = '⏸';
+  }
+
   const area = document.getElementById('song-content-area');
   const pxPerTick = state.scrollSpeed * 0.5;
   state.autoScrollTimer = setInterval(() => {
@@ -883,6 +922,14 @@ function stopAutoScroll() {
   btn.classList.remove('active');
   btn.setAttribute('aria-pressed', 'false');
   btn.querySelector('.btn-icon').textContent = '▶';
+
+  const fbtn = document.getElementById('btn-focus-autoscroll');
+  if (fbtn) {
+    fbtn.classList.remove('active');
+    fbtn.setAttribute('aria-pressed', 'false');
+    fbtn.querySelector('.focus-ctrl-icon').textContent = '▶';
+  }
+
   clearInterval(state.autoScrollTimer);
 }
 

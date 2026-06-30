@@ -845,6 +845,106 @@ body.focus-mode #btn-focus-mode {
   transition: opacity var(--transition-mid);
 }
 
+/* ── Controles flotantes del modo enfoque ── */
+.focus-controls {
+  position: fixed;
+  bottom: var(--space-lg);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: 8px 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lg), var(--shadow-accent);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  animation: focusCtrlIn 0.3s ease;
+}
+.focus-controls[hidden] { display: none !important; }
+
+@keyframes focusCtrlIn {
+  from { opacity: 0; transform: translate(-50%, 16px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+.focus-ctrl-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: var(--bg-dark);
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+  box-shadow: 0 0 14px rgba(0,212,200,0.35);
+}
+.focus-ctrl-btn:hover {
+  background: var(--color-accent-dim);
+  transform: scale(1.1);
+  box-shadow: 0 0 20px rgba(0,212,200,0.55);
+}
+.focus-ctrl-btn:active { transform: scale(0.94); }
+
+.focus-ctrl-btn.active {
+  background: var(--color-gold);
+  box-shadow: 0 0 16px rgba(245,200,66,0.5);
+  animation: scrollPulse 2s ease-in-out infinite;
+}
+
+.focus-exit-btn {
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 14px;
+  box-shadow: none;
+  border: 1px solid var(--border-mid);
+}
+.focus-exit-btn:hover {
+  background: rgba(248,113,113,0.15);
+  color: #f87171;
+  box-shadow: none;
+}
+
+.focus-speed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.focus-speed-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: var(--bg-input);
+  border: 1px solid var(--border-mid);
+  color: var(--text-primary);
+  font-size: 18px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all var(--transition-fast);
+}
+.focus-speed-btn:hover {
+  background: var(--color-accent);
+  color: var(--bg-dark);
+  border-color: transparent;
+}
+
+.focus-speed-val {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-accent);
+  min-width: 30px;
+  text-align: center;
+}
+
 /* Botón Notas */
 .toggle-notes-btn {
   display: flex;
