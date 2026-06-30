@@ -1726,6 +1726,15 @@ function updateSaveButton() {
 
 /* ── Guardar canción en el estado ── */
 function saveSong() {
+  try {
+    doSaveSong();
+  } catch (err) {
+    console.error('[saveSong] Error:', err);
+    showToast('Error al guardar: ' + (err && err.message ? err.message : err), 'error');
+  }
+}
+
+function doSaveSong() {
   const title      = document.getElementById('field-title').value.trim();
   const artist     = document.getElementById('field-artist').value.trim();
   const bpm        = parseInt(document.getElementById('field-bpm').value) || 100;
@@ -1761,31 +1770,55 @@ function saveSong() {
     });
   }
 
-  if (editorState.editingId !== null) {
+  const isEditing = editorState.editingId !== null;
+  let savedId;
+
+  if (isEditing) {
     // ── Modo edición: actualizar canción existente ──
     const idx = state.songs.findIndex(s => s.id === editorState.editingId);
-    if (idx !== -1) {
-      state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
-      saveToStorage();
-      resetListView();
-      applyFiltersAndSort();
-      closeSongEditor();
-      showToast(`✎ "${title}" actualizada`, 'success');
-      setTimeout(() => selectSong(editorState.editingId), 150);
+    if (idx === -1) {
+      showToast('No se encontró la canción a editar', 'error');
+      return;
     }
-    return;
+    state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
+    savedId = editorState.editingId;
+  } else {
+    // ── Modo nuevo: añadir canción ──
+    const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
+    state.songs.push(newSong);
+    savedId = newSong.id;
   }
 
-  // ── Modo nuevo: añadir canción ──
-  const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
-  state.songs.push(newSong);
-  saveToStorage();
-  saveSongOrder();
+  // Persistir (no debe impedir que la canción aparezca aunque localStorage falle)
+  const stored = persistSongs();
+
+  // Actualizar la lista visible — esto SÍ pasa siempre
   resetListView();
   applyFiltersAndSort();
   closeSongEditor();
-  showToast(`♪ "${title}" guardada`, 'success');
-  setTimeout(() => selectSong(newSong.id), 150);
+
+  if (!stored) {
+    showToast('Guardada en esta sesión (no se pudo almacenar permanentemente)', 'info');
+  } else {
+    showToast(isEditing ? `✎ "${title}" actualizada` : `♪ "${title}" guardada`, 'success');
+  }
+
+  setTimeout(() => selectSong(savedId), 150);
+}
+
+/** Intenta persistir en localStorage. Devuelve true si lo logró. */
+function persistSongs() {
+  try {
+    const userSongs = state.songs.filter(s => !SONGS_DATA.some(d => d.id === s.id));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(userSongs));
+    localStorage.setItem(ORDER_KEY, JSON.stringify(state.songs.map(s => s.id)));
+    updateStorageIndicator(userSongs.length);
+    return true;
+  } catch (e) {
+    console.warn('[persistSongs] localStorage no disponible:', e);
+    updateStorageIndicator(0, true);
+    return false;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
