@@ -283,6 +283,7 @@ const state = {
    ══════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
   applySavedOrder();
+  initFocusMode();
   initTheme();
   initMobileTabs();
   initSearch();
@@ -794,6 +795,26 @@ function initViewToggle() {
 /* ══════════════════════════════════════════════════════════
    CONTROLES DE VISUALIZACIÓN
    ══════════════════════════════════════════════════════════ */
+function initFocusMode() {
+  const btn = document.getElementById('btn-focus-mode');
+  btn.addEventListener('click', toggleFocusMode);
+
+  // ESC para salir del modo enfoque
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.body.classList.contains('focus-mode')) {
+      toggleFocusMode();
+    }
+  });
+}
+
+function toggleFocusMode() {
+  const isActive = document.body.classList.toggle('focus-mode');
+  const btn = document.getElementById('btn-focus-mode');
+  btn.querySelector('span').textContent = isActive ? '⛶' : '⛶';
+  btn.title = isActive ? 'Salir del modo enfoque (ESC)' : 'Modo enfoque';
+  btn.classList.toggle('active', isActive);
+}
+
 function initNotesToggle() {
   const btn = document.getElementById('btn-toggle-notes');
   btn.addEventListener('click', () => {
