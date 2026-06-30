@@ -78,6 +78,7 @@ const Transposition = (() => {
     // ── Afinación en Do (C) — pitch de concierto, sin transposición ──
     flute:    0,   // Flauta traversa en Do
     violin:   0,   // Violín en Do
+    viola:    0,   // Viola en Do
     cello:    0,   // Violonchelo en Do
     oboe:     0,   // Oboe en Do
     piano:    0,   // Piano en Do
