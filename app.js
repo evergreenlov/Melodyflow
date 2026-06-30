@@ -172,7 +172,9 @@ const SONGS_DATA = [
 ];
 
 /* ── Persistencia: localStorage ── */
-const STORAGE_KEY = 'melodyflow_songs_v1';
+const STORAGE_KEY  = 'melodyflow_songs_v1';
+const SETLIST_KEY  = 'melodyflow_setlist_v1';
+const ORDER_KEY    = 'melodyflow_order_v1';
 
 function loadUserSongs() {
   try {
@@ -192,6 +194,35 @@ function saveToStorage() {
   }
 }
 
+function loadSetlist() {
+  try { return new Set(JSON.parse(localStorage.getItem(SETLIST_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+
+function saveSetlist() {
+  localStorage.setItem(SETLIST_KEY, JSON.stringify([...state.setlist]));
+}
+
+function loadSongOrder() {
+  try { return JSON.parse(localStorage.getItem(ORDER_KEY) || 'null'); }
+  catch { return null; }
+}
+
+function saveSongOrder() {
+  localStorage.setItem(ORDER_KEY, JSON.stringify(state.songs.map(s => s.id)));
+}
+
+function applySavedOrder() {
+  const order = loadSongOrder();
+  if (!order || !order.length) return;
+  const idMap = new Map(state.songs.map(s => [s.id, s]));
+  const ordered = order.map(id => idMap.get(id)).filter(Boolean);
+  const inOrder = new Set(order);
+  const rest = state.songs.filter(s => !inOrder.has(s.id));
+  state.songs = [...ordered, ...rest];
+  state.filteredSongs = [...state.songs];
+}
+
 function updateStorageIndicator(count, error = false) {
   const el = document.getElementById('storage-indicator');
   if (!el) return;
@@ -207,6 +238,7 @@ function updateStorageIndicator(count, error = false) {
 const state = {
   songs: [...SONGS_DATA, ...loadUserSongs()],
   filteredSongs: [...SONGS_DATA, ...loadUserSongs()],
+  setlist: loadSetlist(),
   activeSongId: null,
   currentFilter: 'alpha',
   searchQuery: '',
@@ -239,6 +271,7 @@ const state = {
    INIT
    ══════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
+  applySavedOrder();
   initTheme();
   initMobileTabs();
   initSearch();
@@ -350,6 +383,12 @@ function applyFiltersAndSort() {
     case 'advanced':
       songs = songs.filter(s => s.difficulty === 'advanced');
       break;
+    case 'setlist':
+      songs = songs.filter(s => state.setlist.has(s.id));
+      break;
+    case 'manual':
+      // orden manual guardado — no reordenar
+      break;
   }
 
   state.filteredSongs = songs;
@@ -420,40 +459,123 @@ function refreshSongDisplay(song) {
 /* ══════════════════════════════════════════════════════════
    LISTA DE CANCIONES
    ══════════════════════════════════════════════════════════ */
+/* ── Borrar canción — confirmación en dos clics ── */
+let _pendingDeleteId   = null;
+let _pendingDeleteTimer = null;
+
+function requestDeleteSong(id, btnEl) {
+  if (_pendingDeleteId === id) {
+    clearTimeout(_pendingDeleteTimer);
+    _pendingDeleteId = null;
+    deleteSong(id);
+    return;
+  }
+  // Cancelar borrado pendiente anterior
+  if (_pendingDeleteId !== null) {
+    clearTimeout(_pendingDeleteTimer);
+    const prev = document.querySelector(`.btn-delete-song[data-song-id="${_pendingDeleteId}"]`);
+    if (prev) { prev.classList.remove('armed'); prev.title = 'Eliminar canción'; prev.textContent = '✕'; }
+  }
+  _pendingDeleteId = id;
+  btnEl.classList.add('armed');
+  btnEl.title = 'Clic de nuevo para confirmar';
+  btnEl.textContent = '¿Eliminar?';
+  _pendingDeleteTimer = setTimeout(() => {
+    _pendingDeleteId = null;
+    if (btnEl) { btnEl.classList.remove('armed'); btnEl.title = 'Eliminar canción'; btnEl.textContent = '✕'; }
+  }, 2500);
+}
+
+function deleteSong(id) {
+  const song = state.songs.find(s => s.id === id);
+  if (!song) return;
+  state.songs = state.songs.filter(s => s.id !== id);
+  state.setlist.delete(id);
+  saveToStorage();
+  saveSetlist();
+  saveSongOrder();
+  if (state.activeSongId === id) {
+    state.activeSongId = null;
+    document.getElementById('song-title').textContent = 'Selecciona una canción';
+    document.getElementById('song-artist').textContent = '— Compositor / Artista';
+    document.getElementById('lyrics-container').innerHTML =
+      '<div class="empty-state"><div class="empty-icon" aria-hidden="true">♩</div><p>Selecciona una canción de la biblioteca para comenzar.</p></div>';
+  }
+  applyFiltersAndSort();
+  showToast(`✕ "${song.title}" eliminada`, 'info');
+}
+
+function toggleSetlist(id) {
+  if (state.setlist.has(id)) {
+    state.setlist.delete(id);
+    showToast('Canción retirada del ensayo', 'info');
+  } else {
+    state.setlist.add(id);
+    showToast('♦ Canción añadida al ensayo', 'success');
+  }
+  saveSetlist();
+  if (state.currentFilter === 'setlist') {
+    applyFiltersAndSort();
+  } else {
+    renderSongList();
+  }
+  updateSetlistChip();
+}
+
+function updateSetlistChip() {
+  const chip = document.querySelector('.filter-chip[data-filter="setlist"]');
+  if (!chip) return;
+  const count = state.setlist.size;
+  chip.textContent = count > 0 ? `♦ Ensayo (${count})` : '♦ Ensayo';
+}
+
+/* ── Drag-and-drop para reordenar ── */
+let _dragSrcId = null;
+
 function renderSongList() {
-  const list = document.getElementById('song-list');
+  const list  = document.getElementById('song-list');
   const count = document.getElementById('song-count');
   const songs = state.filteredSongs;
 
+  const isSetlistView = state.currentFilter === 'setlist';
   count.textContent = `${songs.length} canción${songs.length !== 1 ? 'es' : ''}`;
 
   if (songs.length === 0) {
     list.innerHTML = `<li class="empty-state" style="min-height:120px;font-size:13px;gap:8px;">
       <div class="empty-icon" style="font-size:32px;">♩</div>
-      <p>No se encontraron canciones</p>
+      <p>${isSetlistView ? 'Agrega canciones al ensayo con ♦' : 'No se encontraron canciones'}</p>
     </li>`;
+    updateSetlistChip();
     return;
   }
 
   const isUserSong = song => !SONGS_DATA.some(d => d.id === song.id);
 
   list.innerHTML = songs.map((song, idx) => `
-    <li class="song-item ${song.id === state.activeSongId ? 'active' : ''}"
+    <li class="song-item ${song.id === state.activeSongId ? 'active' : ''} ${state.setlist.has(song.id) ? 'in-setlist' : ''}"
         role="option"
         aria-selected="${song.id === state.activeSongId}"
         id="song-item-${song.id}"
         data-song-id="${song.id}"
         tabindex="0"
-        aria-label="${song.title} — ${song.artist}, ${diffLabel(song.difficulty)}">
+        draggable="true"
+        aria-label="${escapeHtml(song.title)} — ${escapeHtml(song.artist)}">
+      <span class="drag-handle" title="Arrastrar para reordenar" aria-hidden="true">⠿</span>
       <span class="song-item-index">${idx + 1}</span>
       <div class="song-item-info">
         <div class="song-item-title">${escapeHtml(song.title)}</div>
         <div class="song-item-artist">${escapeHtml(song.artist)}</div>
       </div>
       <div class="song-item-actions">
+        <button class="btn-setlist-song ${state.setlist.has(song.id) ? 'active' : ''}"
+                data-song-id="${song.id}"
+                aria-label="${state.setlist.has(song.id) ? 'Quitar del ensayo' : 'Añadir al ensayo'}"
+                title="${state.setlist.has(song.id) ? 'Quitar del ensayo' : 'Añadir al ensayo'}">♦</button>
         ${isUserSong(song) ? `
           <button class="btn-edit-song" data-song-id="${song.id}"
                   aria-label="Editar ${escapeHtml(song.title)}" title="Editar canción">✎</button>
+          <button class="btn-delete-song" data-song-id="${song.id}"
+                  aria-label="Eliminar ${escapeHtml(song.title)}" title="Eliminar canción">✕</button>
         ` : ''}
         <span class="song-item-difficulty difficulty-${song.difficulty}"
               title="${diffLabel(song.difficulty)}" aria-hidden="true"></span>
@@ -461,13 +583,60 @@ function renderSongList() {
     </li>
   `).join('');
 
+  // Clicks en el ítem (evitando botones de acción)
   list.querySelectorAll('.song-item').forEach(item => {
+    const songId = parseInt(item.dataset.songId);
+
     item.addEventListener('click', e => {
-      if (e.target.closest('.btn-edit-song')) return;
-      selectSong(parseInt(item.dataset.songId));
+      if (e.target.closest('.btn-edit-song, .btn-delete-song, .btn-setlist-song, .drag-handle')) return;
+      selectSong(songId);
     });
     item.addEventListener('keydown', e => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSong(parseInt(item.dataset.songId)); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSong(songId); }
+    });
+
+    // Drag-and-drop
+    item.addEventListener('dragstart', e => {
+      _dragSrcId = songId;
+      e.dataTransfer.effectAllowed = 'move';
+      setTimeout(() => item.classList.add('dragging'), 0);
+    });
+    item.addEventListener('dragend', () => {
+      item.classList.remove('dragging');
+      list.querySelectorAll('.song-item').forEach(el => el.classList.remove('drag-over'));
+    });
+    item.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      list.querySelectorAll('.song-item').forEach(el => el.classList.remove('drag-over'));
+      if (songId !== _dragSrcId) item.classList.add('drag-over');
+    });
+    item.addEventListener('drop', e => {
+      e.preventDefault();
+      item.classList.remove('drag-over');
+      if (_dragSrcId === null || _dragSrcId === songId) return;
+      const srcIdx = state.songs.findIndex(s => s.id === _dragSrcId);
+      const dstIdx = state.songs.findIndex(s => s.id === songId);
+      if (srcIdx === -1 || dstIdx === -1) return;
+      const [moved] = state.songs.splice(srcIdx, 1);
+      state.songs.splice(dstIdx, 0, moved);
+      saveSongOrder();
+      // Si estamos en alpha, salir de ese modo para que se vea el orden manual
+      if (state.currentFilter === 'alpha') {
+        document.querySelectorAll('.filter-chip').forEach(c => {
+          c.classList.remove('active');
+          c.setAttribute('aria-pressed', 'false');
+        });
+        state.currentFilter = 'manual';
+      }
+      applyFiltersAndSort();
+    });
+  });
+
+  list.querySelectorAll('.btn-setlist-song').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      toggleSetlist(parseInt(btn.dataset.songId));
     });
   });
 
@@ -477,6 +646,15 @@ function renderSongList() {
       openSongEditor(parseInt(btn.dataset.songId));
     });
   });
+
+  list.querySelectorAll('.btn-delete-song').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      requestDeleteSong(parseInt(btn.dataset.songId), btn);
+    });
+  });
+
+  updateSetlistChip();
 }
 
 function selectSong(id) {

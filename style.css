@@ -475,11 +475,80 @@ a { color: inherit; text-decoration: none; }
 .difficulty-intermediate { background: var(--color-intermediate); box-shadow: 0 0 6px var(--color-intermediate); }
 .difficulty-advanced     { background: var(--color-advanced); box-shadow: 0 0 6px var(--color-advanced); }
 
+/* Drag handle */
+.drag-handle {
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: grab;
+  padding: 0 2px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+  line-height: 1;
+  user-select: none;
+}
+.drag-handle:active { cursor: grabbing; }
+.song-item:hover .drag-handle { opacity: 0.5; }
+.song-item.dragging {
+  opacity: 0.45;
+  background: var(--bg-active);
+  border-color: var(--border-accent);
+  box-shadow: var(--shadow-accent);
+}
+.song-item.drag-over {
+  border-color: var(--color-accent);
+  background: rgba(0,212,200,0.07);
+  transform: scale(1.01);
+}
+
+/* Indicador de canción en setlist */
+.song-item.in-setlist::after {
+  content: '';
+  position: absolute;
+  right: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--color-gold);
+  border-radius: 2px 0 0 2px;
+}
+
 .song-item-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   flex-shrink: 0;
+}
+
+/* Botón ensayo (estrella/diamante) */
+.btn-setlist-song {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+.song-item:hover .btn-setlist-song,
+.song-item.active .btn-setlist-song,
+.btn-setlist-song.active {
+  opacity: 1;
+}
+.btn-setlist-song.active {
+  color: var(--color-gold);
+  border-color: rgba(245,200,66,0.3);
+  background: rgba(245,200,66,0.08);
+}
+.btn-setlist-song:hover {
+  color: var(--color-gold);
+  border-color: rgba(245,200,66,0.4);
+  background: rgba(245,200,66,0.1);
 }
 
 .btn-edit-song {
@@ -498,16 +567,63 @@ a { color: inherit; text-decoration: none; }
   transition: all var(--transition-fast);
   flex-shrink: 0;
 }
-
 .song-item:hover .btn-edit-song,
-.song-item.active .btn-edit-song {
-  opacity: 1;
-}
-
+.song-item.active .btn-edit-song { opacity: 1; }
 .btn-edit-song:hover {
   background: var(--bg-card);
   border-color: var(--border-accent);
   color: var(--color-accent);
+}
+
+/* Botón borrar */
+.btn-delete-song {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.song-item:hover .btn-delete-song,
+.song-item.active .btn-delete-song { opacity: 1; }
+.btn-delete-song:hover {
+  background: rgba(248,113,113,0.1);
+  border-color: rgba(248,113,113,0.3);
+  color: #f87171;
+}
+.btn-delete-song.armed {
+  opacity: 1;
+  width: auto;
+  padding: 0 6px;
+  background: rgba(248,113,113,0.15);
+  border-color: #f87171;
+  color: #f87171;
+  font-size: 10px;
+  font-weight: 600;
+  animation: armPulse 0.4s ease;
+}
+@keyframes armPulse {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* Chip de ensayo */
+.filter-chip--setlist.active {
+  background: var(--color-gold);
+  border-color: transparent;
+  color: var(--bg-dark);
+  box-shadow: 0 0 12px rgba(245,200,66,0.4);
 }
 
 /* ══════════════════════════════════════════════════════════
