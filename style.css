@@ -2814,6 +2814,9 @@ body.focus-mode #btn-focus-mode {
 }
 .btn-primary:active:not(:disabled) { transform: translateY(0) scale(0.97); }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+/* Faltan campos: atenuado pero todavía se puede hacer clic (avisa qué falta) */
+.btn-primary.incomplete { opacity: 0.6; box-shadow: none; }
+.btn-primary.incomplete:hover { opacity: 1; }
 
 /* ── Responsive modal ── */
 @media (max-width: 640px) {

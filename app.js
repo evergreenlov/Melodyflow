@@ -1355,7 +1355,7 @@ function initSongEditor() {
   document.getElementById('btn-modal-save').addEventListener('click', saveSong);
   document.getElementById('btn-modal-prev').addEventListener('click', () => navigateTab(-1));
   document.getElementById('btn-modal-next').addEventListener('click', () => navigateTab(1));
-  document.getElementById('btn-add-section').addEventListener('click', addSection);
+  document.getElementById('btn-add-section').addEventListener('click', () => addSection());
 
   // Cerrar al hacer clic en el overlay (fuera del box)
   document.getElementById('song-editor-overlay').addEventListener('click', e => {
@@ -1503,7 +1503,9 @@ function navigateTab(dir) {
 function addSection(customLabel = null) {
   editorState.sectionCount++;
   const id = `sec-${Date.now()}`;
-  const defaultLabel = customLabel || (editorState.sectionCount === 1 ? 'Verso 1'
+  // Solo aceptar etiqueta si es texto (evita recibir un Event por error)
+  const labelText = typeof customLabel === 'string' ? customLabel : null;
+  const defaultLabel = labelText || (editorState.sectionCount === 1 ? 'Verso 1'
     : editorState.sectionCount === 2 ? 'Coro'
     : `Sección ${editorState.sectionCount}`);
 
@@ -1708,15 +1710,18 @@ function collectSectionsData() {
   return sections;
 }
 
-/* ── Validación y activación del botón Guardar ── */
+/* ── Validación visual del botón Guardar ──
+   El botón nunca se deshabilita: siempre responde al clic y, si falta
+   algo, saveSong() avisa qué completar. Aquí solo damos pista visual. ── */
 function updateSaveButton() {
   const titleOk  = document.getElementById('field-title').value.trim().length > 0;
   const artistOk = document.getElementById('field-artist').value.trim().length > 0;
-  // Basta con que cualquier campo de notas O sílabas tenga contenido
   const hasContent = [...document.querySelectorAll('.line-notes-input, .line-syllables-input')]
     .some(inp => inp.value.trim().length > 0);
 
-  document.getElementById('btn-modal-save').disabled = !(titleOk && artistOk && hasContent);
+  const btn = document.getElementById('btn-modal-save');
+  btn.disabled = false;                                  // siempre clicable
+  btn.classList.toggle('incomplete', !(titleOk && artistOk && hasContent));
 }
 
 /* ── Guardar canción en el estado ── */
@@ -1729,10 +1734,31 @@ function saveSong() {
   const difficulty = document.querySelector('input[name="new-difficulty"]:checked')?.value || 'beginner';
   const sections   = collectSectionsData();
 
-  if (!title || !artist) return;
+  if (!title || !artist) {
+    showToast('Completa el título y el compositor/artista', 'info');
+    switchModalTab('info');
+    return;
+  }
   if (sections.length === 0) {
     showToast('Agrega al menos una línea de letra o notas', 'info');
+    switchModalTab('sections');
     return;
+  }
+
+  // Quitar cualquier filtro o búsqueda activa para que la canción guardada
+  // siempre aparezca en la lista (si no, parece que "no se guardó").
+  function resetListView() {
+    state.searchQuery = '';
+    const searchInput = document.getElementById('song-search-input');
+    if (searchInput) searchInput.value = '';
+    const clearBtn = document.getElementById('btn-clear-search');
+    if (clearBtn) clearBtn.hidden = true;
+    state.currentFilter = 'alpha';
+    document.querySelectorAll('.filter-chip').forEach(c => {
+      const isAlpha = c.dataset.filter === 'alpha';
+      c.classList.toggle('active', isAlpha);
+      c.setAttribute('aria-pressed', isAlpha);
+    });
   }
 
   if (editorState.editingId !== null) {
@@ -1741,6 +1767,7 @@ function saveSong() {
     if (idx !== -1) {
       state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
       saveToStorage();
+      resetListView();
       applyFiltersAndSort();
       closeSongEditor();
       showToast(`✎ "${title}" actualizada`, 'success');
@@ -1753,6 +1780,8 @@ function saveSong() {
   const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
   state.songs.push(newSong);
   saveToStorage();
+  saveSongOrder();
+  resetListView();
   applyFiltersAndSort();
   closeSongEditor();
   showToast(`♪ "${title}" guardada`, 'success');

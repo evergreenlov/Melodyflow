@@ -4,7 +4,7 @@
     {
       "name": "melodyflow",
       "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "5050", "--directory", "/Volumes/MYRIAM SEAG/evergreen-love/melodyflow"],
+      "runtimeArgs": ["-m", "http.server", "5050", "--directory", "/Volumes/MYRIAM SEAG/melodyflow"],
       "port": 5050
     }
   ]
