@@ -290,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initInstruments();
   renderSongList();
   initViewToggle();
+  initNotesToggle();
   initDisplayControls();
   initAutoScroll();
   initMetronome();
@@ -793,6 +794,17 @@ function initViewToggle() {
 /* ══════════════════════════════════════════════════════════
    CONTROLES DE VISUALIZACIÓN
    ══════════════════════════════════════════════════════════ */
+function initNotesToggle() {
+  const btn = document.getElementById('btn-toggle-notes');
+  btn.addEventListener('click', () => {
+    const showing = btn.getAttribute('aria-pressed') === 'true';
+    const next = !showing;
+    btn.setAttribute('aria-pressed', next);
+    btn.classList.toggle('active', next);
+    document.getElementById('lyrics-container').classList.toggle('hide-notes', !next);
+  });
+}
+
 function initDisplayControls() {
   const fontRange = document.getElementById('font-size-range');
   const fontDisplay = document.getElementById('font-size-display');
