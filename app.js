@@ -733,14 +733,16 @@ function renderLyrics(song) {
       ${section.lines.map(line => `
         <div class="lyric-line">
           <div class="lyric-syllables">
-            ${line.map(syl => `
+            ${line.map(syl => {
+              const hasNote = syl.note && syl.note !== '—';
+              return `
               <div class="lyric-syllable">
-                <span class="syllable-note${isTransposed && syl.note !== '—' ? ' transposed' : ''}">
-                  ${escapeHtml(syl.note)}
-                </span>
+                ${hasNote
+                  ? `<span class="syllable-note${isTransposed ? ' transposed' : ''}">${escapeHtml(syl.note)}</span>`
+                  : `<span class="syllable-note-empty" aria-hidden="true"></span>`}
                 <span class="syllable-text">${escapeHtml(syl.text)}</span>
-              </div>
-            `).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>
       `).join('')}

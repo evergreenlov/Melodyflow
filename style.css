@@ -1118,6 +1118,12 @@ body.focus-mode #btn-focus-mode {
   filter: drop-shadow(0 0 4px rgba(245,200,66,0.2));
 }
 
+/* Placeholder cuando la sílaba no tiene nota: ocupa el alto pero sin caja */
+.syllable-note-empty {
+  display: block;
+  height: 18px;
+}
+
 .syllable-text {
   font-size: 20px;
   font-weight: 400;
