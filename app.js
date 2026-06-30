@@ -175,6 +175,15 @@ const SONGS_DATA = [
 const STORAGE_KEY  = 'melodyflow_songs_v1';
 const SETLIST_KEY  = 'melodyflow_setlist_v1';
 const ORDER_KEY    = 'melodyflow_order_v1';
+const HIDDEN_KEY   = 'melodyflow_hidden_v1';  // IDs de canciones predeterminadas ocultas
+
+function loadHidden() {
+  try { return new Set(JSON.parse(localStorage.getItem(HIDDEN_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function saveHidden(hiddenSet) {
+  localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenSet]));
+}
 
 function loadUserSongs() {
   try {
@@ -235,10 +244,12 @@ function updateStorageIndicator(count, error = false) {
 }
 
 /* ── Estado global ── */
+const _hidden = loadHidden();
 const state = {
-  songs: [...SONGS_DATA, ...loadUserSongs()],
-  filteredSongs: [...SONGS_DATA, ...loadUserSongs()],
+  songs: [...SONGS_DATA.filter(s => !_hidden.has(s.id)), ...loadUserSongs()],
+  filteredSongs: [...SONGS_DATA.filter(s => !_hidden.has(s.id)), ...loadUserSongs()],
   setlist: loadSetlist(),
+  hiddenBuiltIn: _hidden,
   activeSongId: null,
   currentFilter: 'alpha',
   searchQuery: '',
@@ -489,11 +500,20 @@ function requestDeleteSong(id, btnEl) {
 function deleteSong(id) {
   const song = state.songs.find(s => s.id === id);
   if (!song) return;
+
+  // Si es predeterminada, guardarla como oculta para que no vuelva al recargar
+  const isBuiltIn = SONGS_DATA.some(d => d.id === id);
+  if (isBuiltIn) {
+    state.hiddenBuiltIn.add(id);
+    saveHidden(state.hiddenBuiltIn);
+  }
+
   state.songs = state.songs.filter(s => s.id !== id);
   state.setlist.delete(id);
   saveToStorage();
   saveSetlist();
   saveSongOrder();
+
   if (state.activeSongId === id) {
     state.activeSongId = null;
     document.getElementById('song-title').textContent = 'Selecciona una canción';
@@ -574,9 +594,9 @@ function renderSongList() {
         ${isUserSong(song) ? `
           <button class="btn-edit-song" data-song-id="${song.id}"
                   aria-label="Editar ${escapeHtml(song.title)}" title="Editar canción">✎</button>
-          <button class="btn-delete-song" data-song-id="${song.id}"
-                  aria-label="Eliminar ${escapeHtml(song.title)}" title="Eliminar canción">✕</button>
         ` : ''}
+        <button class="btn-delete-song" data-song-id="${song.id}"
+                aria-label="Eliminar ${escapeHtml(song.title)}" title="Eliminar canción">✕</button>
         <span class="song-item-difficulty difficulty-${song.difficulty}"
               title="${diffLabel(song.difficulty)}" aria-hidden="true"></span>
       </div>
