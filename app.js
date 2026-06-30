@@ -1274,7 +1274,8 @@ function collectSectionsData() {
 function updateSaveButton() {
   const titleOk  = document.getElementById('field-title').value.trim().length > 0;
   const artistOk = document.getElementById('field-artist').value.trim().length > 0;
-  const hasContent = [...document.querySelectorAll('.line-syllables-input')]
+  // Basta con que cualquier campo de notas O sílabas tenga contenido
+  const hasContent = [...document.querySelectorAll('.line-notes-input, .line-syllables-input')]
     .some(inp => inp.value.trim().length > 0);
 
   document.getElementById('btn-modal-save').disabled = !(titleOk && artistOk && hasContent);
@@ -1289,7 +1290,11 @@ function saveSong() {
   const difficulty = document.querySelector('input[name="new-difficulty"]:checked')?.value || 'beginner';
   const sections   = collectSectionsData();
 
-  if (!title || !artist || sections.length === 0) return;
+  if (!title || !artist) return;
+  if (sections.length === 0) {
+    showToast('Agrega al menos una línea de letra o notas', 'info');
+    return;
+  }
 
   const newSong = {
     id: Date.now(),
