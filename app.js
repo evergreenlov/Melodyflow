@@ -433,6 +433,8 @@ function renderSongList() {
     return;
   }
 
+  const isUserSong = song => !SONGS_DATA.some(d => d.id === song.id);
+
   list.innerHTML = songs.map((song, idx) => `
     <li class="song-item ${song.id === state.activeSongId ? 'active' : ''}"
         role="option"
@@ -446,15 +448,31 @@ function renderSongList() {
         <div class="song-item-title">${escapeHtml(song.title)}</div>
         <div class="song-item-artist">${escapeHtml(song.artist)}</div>
       </div>
-      <span class="song-item-difficulty difficulty-${song.difficulty}"
-            title="${diffLabel(song.difficulty)}" aria-hidden="true"></span>
+      <div class="song-item-actions">
+        ${isUserSong(song) ? `
+          <button class="btn-edit-song" data-song-id="${song.id}"
+                  aria-label="Editar ${escapeHtml(song.title)}" title="Editar canción">✎</button>
+        ` : ''}
+        <span class="song-item-difficulty difficulty-${song.difficulty}"
+              title="${diffLabel(song.difficulty)}" aria-hidden="true"></span>
+      </div>
     </li>
   `).join('');
 
   list.querySelectorAll('.song-item').forEach(item => {
-    item.addEventListener('click', () => selectSong(parseInt(item.dataset.songId)));
+    item.addEventListener('click', e => {
+      if (e.target.closest('.btn-edit-song')) return;
+      selectSong(parseInt(item.dataset.songId));
+    });
     item.addEventListener('keydown', e => {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectSong(parseInt(item.dataset.songId)); }
+    });
+  });
+
+  list.querySelectorAll('.btn-edit-song').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      openSongEditor(parseInt(btn.dataset.songId));
     });
   });
 }
@@ -963,8 +981,9 @@ function escapeHtml(str) {
 
 /* ── Estado interno del modal ── */
 const editorState = {
-  currentTab: 'info',   // 'info' | 'sections' | 'preview'
+  currentTab: 'info',
   sectionCount: 0,
+  editingId: null,      // null = nueva canción, número = editar existente
 };
 
 /* ── Inicialización ── */
@@ -1007,12 +1026,56 @@ function initSongEditor() {
 }
 
 /* ── Abrir / cerrar modal ── */
-function openSongEditor() {
+function openSongEditor(songId = null) {
+  editorState.editingId = songId;
   resetEditor();
+
+  if (songId !== null) {
+    const song = state.songs.find(s => s.id === songId);
+    if (song) fillEditorWithSong(song);
+    // Cambiar título del modal
+    document.querySelector('#song-editor-overlay .modal-title').textContent = '✎ Editar Canción';
+    document.getElementById('btn-modal-save').textContent = '✎ Guardar cambios';
+  } else {
+    document.querySelector('#song-editor-overlay .modal-title').textContent = '♪ Nueva Canción';
+    document.getElementById('btn-modal-save').textContent = '♪ Guardar canción';
+  }
+
   document.getElementById('song-editor-overlay').hidden = false;
   document.body.style.overflow = 'hidden';
-  // Foco al primer campo
   setTimeout(() => document.getElementById('field-title').focus(), 100);
+}
+
+function fillEditorWithSong(song) {
+  document.getElementById('field-title').value  = song.title;
+  document.getElementById('field-artist').value = song.artist;
+  document.getElementById('field-bpm').value    = song.bpm || 100;
+  document.getElementById('field-bpm-range').value = song.bpm || 100;
+  document.getElementById('field-key').value    = song.key || 'Do Mayor';
+
+  const diff = song.difficulty || 'beginner';
+  const diffInput = document.querySelector(`input[name="new-difficulty"][value="${diff}"]`);
+  if (diffInput) diffInput.checked = true;
+
+  // Limpiar secciones y rellenar con los datos de la canción
+  document.getElementById('sections-editor').innerHTML = '';
+  editorState.sectionCount = 0;
+
+  (song.sections || []).forEach(sec => {
+    addSection(sec.label);
+    const secEl = document.getElementById('sections-editor').lastElementChild;
+    const secId = secEl.dataset.secId;
+    // Eliminar la línea vacía que addSection añade automáticamente
+    document.getElementById(`lines-${secId}`).innerHTML = '';
+
+    (sec.lines || []).forEach(line => {
+      const notes = line.map(s => s.note || '—').join(' ');
+      const syls  = line.map(s => s.text || ' ').join(' ');
+      addLineWithValues(secId, notes, syls);
+    });
+  });
+
+  updateSaveButton();
 }
 
 function closeSongEditor() {
@@ -1074,12 +1137,12 @@ function navigateTab(dir) {
 }
 
 /* ── Secciones: agregar / quitar ── */
-function addSection() {
+function addSection(customLabel = null) {
   editorState.sectionCount++;
   const id = `sec-${Date.now()}`;
-  const defaultLabel = editorState.sectionCount === 1 ? 'Verso 1'
+  const defaultLabel = customLabel || (editorState.sectionCount === 1 ? 'Verso 1'
     : editorState.sectionCount === 2 ? 'Coro'
-    : `Sección ${editorState.sectionCount}`;
+    : `Sección ${editorState.sectionCount}`);
 
   const card = document.createElement('div');
   card.className = 'section-card';
@@ -1182,6 +1245,18 @@ function addLine(sectionId) {
 
   container.appendChild(row);
   notesInput.focus();
+}
+
+function addLineWithValues(sectionId, notesText, sylsText) {
+  addLine(sectionId);
+  const container = document.getElementById(`lines-${sectionId}`);
+  const lastRow   = container.lastElementChild;
+  const ni = lastRow.querySelector('.line-notes-input');
+  const si = lastRow.querySelector('.line-syllables-input');
+  const pv = lastRow.querySelector('.line-preview');
+  ni.value = notesText;
+  si.value = sylsText;
+  renderLinePreview(notesText, sylsText, pv);
 }
 
 /* ── Parser: dos strings (notas y sílabas) → array de syllables ── */
@@ -1296,24 +1371,27 @@ function saveSong() {
     return;
   }
 
-  const newSong = {
-    id: Date.now(),
-    title,
-    artist,
-    bpm,
-    key,
-    difficulty,
-    sections,
-  };
+  if (editorState.editingId !== null) {
+    // ── Modo edición: actualizar canción existente ──
+    const idx = state.songs.findIndex(s => s.id === editorState.editingId);
+    if (idx !== -1) {
+      state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, difficulty, sections };
+      saveToStorage();
+      applyFiltersAndSort();
+      closeSongEditor();
+      showToast(`✎ "${title}" actualizada`, 'success');
+      setTimeout(() => selectSong(editorState.editingId), 150);
+    }
+    return;
+  }
 
-  // Añadir al estado, persistir y re-renderizar
+  // ── Modo nuevo: añadir canción ──
+  const newSong = { id: Date.now(), title, artist, bpm, key, difficulty, sections };
   state.songs.push(newSong);
   saveToStorage();
   applyFiltersAndSort();
-
   closeSongEditor();
   showToast(`♪ "${title}" guardada`, 'success');
-
   setTimeout(() => selectSong(newSong.id), 150);
 }
 

@@ -472,6 +472,41 @@ a { color: inherit; text-decoration: none; }
 .difficulty-intermediate { background: var(--color-intermediate); box-shadow: 0 0 6px var(--color-intermediate); }
 .difficulty-advanced     { background: var(--color-advanced); box-shadow: 0 0 6px var(--color-advanced); }
 
+.song-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.btn-edit-song {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.song-item:hover .btn-edit-song,
+.song-item.active .btn-edit-song {
+  opacity: 1;
+}
+
+.btn-edit-song:hover {
+  background: var(--bg-card);
+  border-color: var(--border-accent);
+  color: var(--color-accent);
+}
+
 /* ══════════════════════════════════════════════════════════
    PANEL CENTRAL — Visor
    ══════════════════════════════════════════════════════════ */
