@@ -239,6 +239,7 @@ const state = {
    INIT
    ══════════════════════════════════════════════════════════ */
 document.addEventListener('DOMContentLoaded', () => {
+  initTheme();
   initMobileTabs();
   initSearch();
   initFilters();
@@ -258,7 +259,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // Mostrar indicador si ya hay canciones guardadas
   const saved = loadUserSongs();
   if (saved.length) updateStorageIndicator(saved.length);
-  showToast('¡Bienvenido a MelodyFlow! 🎶', 'info');
+  showToast('¡Bienvenido a MelodyFlow!', 'info');
 });
 
 /* ══════════════════════════════════════════════════════════
@@ -655,6 +656,77 @@ function stopAutoScroll() {
 }
 
 /* ══════════════════════════════════════════════════════════
+   TEMA CLARO / OSCURO
+   ══════════════════════════════════════════════════════════ */
+function initTheme() {
+  const saved = localStorage.getItem('melodyflow_theme') || 'dark';
+  applyTheme(saved);
+
+  document.getElementById('btn-theme-toggle').addEventListener('click', () => {
+    const current = document.documentElement.dataset.theme || 'dark';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
+}
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  localStorage.setItem('melodyflow_theme', theme);
+  const btn = document.getElementById('btn-theme-toggle');
+  if (!btn) return;
+  btn.querySelector('span').textContent = theme === 'dark' ? '☀' : '◑';
+  btn.title = theme === 'dark' ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro';
+}
+
+/* ══════════════════════════════════════════════════════════
+   AUDIO — Web Audio API (metrónomo y futuros usos)
+   ══════════════════════════════════════════════════════════ */
+let _audioCtx = null;
+
+function getAudioCtx() {
+  if (!_audioCtx) {
+    try { _audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch(e) { return null; }
+  }
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
+  return _audioCtx;
+}
+
+function playMetronomeClick(isAccent) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+
+  const now = ctx.currentTime;
+
+  // Oscilador principal — click más nítido
+  const osc  = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+
+  osc.type = 'sine';
+  osc.frequency.value = isAccent ? 1050 : 700;
+  gain.gain.setValueAtTime(isAccent ? 0.55 : 0.3, now);
+  gain.gain.exponentialRampToValueAtTime(0.001, now + (isAccent ? 0.08 : 0.06));
+
+  osc.start(now);
+  osc.stop(now + 0.1);
+
+  // Capa de "click" de alta frecuencia para el acento
+  if (isAccent) {
+    const osc2  = ctx.createOscillator();
+    const gain2 = ctx.createGain();
+    osc2.connect(gain2);
+    gain2.connect(ctx.destination);
+    osc2.type = 'triangle';
+    osc2.frequency.value = 2100;
+    gain2.gain.setValueAtTime(0.2, now);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+    osc2.start(now);
+    osc2.stop(now + 0.05);
+  }
+}
+
+/* ══════════════════════════════════════════════════════════
    METRÓNOMO
    ══════════════════════════════════════════════════════════ */
 function initMetronome() {
@@ -718,6 +790,7 @@ function tickBeat() {
   const sig = state.metronome.timeSig;
   const beat = state.metronome.beat % sig;
   highlightBeat(beat, sig);
+  playMetronomeClick(beat === 0);   // acento en el tiempo 1
   state.metronome.beat++;
 }
 
