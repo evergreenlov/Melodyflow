@@ -86,6 +86,7 @@ const Transposition = (() => {
     trumpet:  2,   // Trompeta en Sib
     clarinet: 2,   // Clarinete en Sib
     tenor_sax:2,   // Saxofón Tenor en Sib
+    soprano_sax:2, // Saxofón Soprano en Sib
 
     // ── Afinación en Mib (Eb) — sube 9 semitonos ──
     saxophone:9,   // Saxofón Alto en Mib  (ID legacy del selector)
