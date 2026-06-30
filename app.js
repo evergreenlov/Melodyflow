@@ -1714,14 +1714,11 @@ function collectSectionsData() {
    El botón nunca se deshabilita: siempre responde al clic y, si falta
    algo, saveSong() avisa qué completar. Aquí solo damos pista visual. ── */
 function updateSaveButton() {
-  const titleOk  = document.getElementById('field-title').value.trim().length > 0;
-  const artistOk = document.getElementById('field-artist').value.trim().length > 0;
-  const hasContent = [...document.querySelectorAll('.line-notes-input, .line-syllables-input')]
-    .some(inp => inp.value.trim().length > 0);
+  const titleOk = document.getElementById('field-title').value.trim().length > 0;
 
   const btn = document.getElementById('btn-modal-save');
-  btn.disabled = false;                                  // siempre clicable
-  btn.classList.toggle('incomplete', !(titleOk && artistOk && hasContent));
+  btn.disabled = false;                  // siempre clicable
+  btn.classList.toggle('incomplete', !titleOk);  // solo el título marca "incompleto"
 }
 
 /* ── Guardar canción en el estado ── */
@@ -1735,24 +1732,17 @@ function saveSong() {
 }
 
 function doSaveSong() {
-  const title      = document.getElementById('field-title').value.trim();
-  const artist     = document.getElementById('field-artist').value.trim();
+  const titleRaw   = document.getElementById('field-title').value.trim();
+  const artist     = document.getElementById('field-artist').value.trim() || '—';
   const bpm        = parseInt(document.getElementById('field-bpm').value) || 100;
   const key        = document.getElementById('field-key').value;
   const timeSig    = document.getElementById('field-timesig').value || '4/4';
   const difficulty = document.querySelector('input[name="new-difficulty"]:checked')?.value || 'beginner';
   const sections   = collectSectionsData();
 
-  if (!title || !artist) {
-    showToast('Completa el título y el compositor/artista', 'info');
-    switchModalTab('info');
-    return;
-  }
-  if (sections.length === 0) {
-    showToast('Agrega al menos una línea de letra o notas', 'info');
-    switchModalTab('sections');
-    return;
-  }
+  // Única regla obligatoria: el título. Lo demás es opcional y se puede
+  // completar después editando la canción.
+  const title = titleRaw || 'Sin título';
 
   // Quitar cualquier filtro o búsqueda activa para que la canción guardada
   // siempre aparezca en la lista (si no, parece que "no se guardó").
@@ -1777,11 +1767,14 @@ function doSaveSong() {
     // ── Modo edición: actualizar canción existente ──
     const idx = state.songs.findIndex(s => s.id === editorState.editingId);
     if (idx === -1) {
-      showToast('No se encontró la canción a editar', 'error');
-      return;
+      // La canción ya no existe: la añadimos como nueva en vez de fallar.
+      const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
+      state.songs.push(newSong);
+      savedId = newSong.id;
+    } else {
+      state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
+      savedId = editorState.editingId;
     }
-    state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
-    savedId = editorState.editingId;
   } else {
     // ── Modo nuevo: añadir canción ──
     const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
@@ -1792,7 +1785,7 @@ function doSaveSong() {
   // Persistir (no debe impedir que la canción aparezca aunque localStorage falle)
   const stored = persistSongs();
 
-  // Actualizar la lista visible — esto SÍ pasa siempre
+  // Cerrar el modal y refrescar la lista — SIEMPRE ocurre, pase lo que pase.
   resetListView();
   applyFiltersAndSort();
   closeSongEditor();
