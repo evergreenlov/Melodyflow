@@ -254,6 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSongEditor();
   initManualTranspose();
   initDataBar();
+  initStaffView();
   // Mostrar indicador si ya hay canciones guardadas
   const saved = loadUserSongs();
   if (saved.length) updateStorageIndicator(saved.length);
@@ -575,7 +576,14 @@ function initViewToggle() {
         requestAnimationFrame(() => document.getElementById('view-lyrics').classList.add('active'));
       } else {
         document.getElementById('view-staff').hidden = false;
-        requestAnimationFrame(() => document.getElementById('view-staff').classList.add('active'));
+        requestAnimationFrame(() => {
+          document.getElementById('view-staff').classList.add('active');
+          // Renderizar partitura al cambiar a esta vista
+          if (state.activeSongId !== null) {
+            const song = state.songs.find(s => s.id === state.activeSongId);
+            if (song) renderStaff(song);
+          }
+        });
       }
     });
   });
@@ -1051,7 +1059,8 @@ function fillEditorWithSong(song) {
   document.getElementById('field-artist').value = song.artist;
   document.getElementById('field-bpm').value    = song.bpm || 100;
   document.getElementById('field-bpm-range').value = song.bpm || 100;
-  document.getElementById('field-key').value    = song.key || 'Do Mayor';
+  document.getElementById('field-key').value     = song.key || 'Do Mayor';
+  document.getElementById('field-timesig').value = song.timeSig || '4/4';
 
   const diff = song.difficulty || 'beginner';
   const diffInput = document.querySelector(`input[name="new-difficulty"][value="${diff}"]`);
@@ -1089,7 +1098,8 @@ function resetEditor() {
   document.getElementById('field-artist').value = '';
   document.getElementById('field-bpm').value = 100;
   document.getElementById('field-bpm-range').value = 100;
-  document.getElementById('field-key').value = 'Do Mayor';
+  document.getElementById('field-key').value     = 'Do Mayor';
+  document.getElementById('field-timesig').value = '4/4';
   document.querySelector('input[name="new-difficulty"][value="beginner"]').checked = true;
 
   // Limpiar secciones
@@ -1362,6 +1372,7 @@ function saveSong() {
   const artist     = document.getElementById('field-artist').value.trim();
   const bpm        = parseInt(document.getElementById('field-bpm').value) || 100;
   const key        = document.getElementById('field-key').value;
+  const timeSig    = document.getElementById('field-timesig').value || '4/4';
   const difficulty = document.querySelector('input[name="new-difficulty"]:checked')?.value || 'beginner';
   const sections   = collectSectionsData();
 
@@ -1375,7 +1386,7 @@ function saveSong() {
     // ── Modo edición: actualizar canción existente ──
     const idx = state.songs.findIndex(s => s.id === editorState.editingId);
     if (idx !== -1) {
-      state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, difficulty, sections };
+      state.songs[idx] = { ...state.songs[idx], title, artist, bpm, key, timeSig, difficulty, sections };
       saveToStorage();
       applyFiltersAndSort();
       closeSongEditor();
@@ -1386,7 +1397,7 @@ function saveSong() {
   }
 
   // ── Modo nuevo: añadir canción ──
-  const newSong = { id: Date.now(), title, artist, bpm, key, difficulty, sections };
+  const newSong = { id: Date.now(), title, artist, bpm, key, timeSig, difficulty, sections };
   state.songs.push(newSong);
   saveToStorage();
   applyFiltersAndSort();
@@ -1536,4 +1547,277 @@ function importSongs(e) {
     e.target.value = '';
   };
   reader.readAsText(file);
+}
+
+/* ══════════════════════════════════════════════════════════
+   VISTA DE PARTITURA — VexFlow
+   ══════════════════════════════════════════════════════════ */
+
+// Mapeo nota española → clave VexFlow (octava 4, dentro del pentagrama de Sol)
+const NOTE_VF = {
+  'Do':'c/4','Do#':'c#/4','Dob':'cb/4',
+  'Re':'d/4','Re#':'d#/4','Reb':'db/4',
+  'Mi':'e/4','Mi#':'e#/4','Mib':'eb/4',
+  'Fa':'f/4','Fa#':'f#/4','Fab':'fb/4',
+  'Sol':'g/4','Sol#':'g#/4','Solb':'gb/4',
+  'La':'a/4','La#':'a#/4','Lab':'ab/4',
+  'Si':'b/4','Si#':'b#/4','Sib':'bb/4',
+};
+
+const NOTE_VF_ACC = {
+  'Do#':'#','Dob':'b','Re#':'#','Reb':'b',
+  'Mi#':'#','Mib':'b','Fa#':'#','Fab':'b',
+  'Sol#':'#','Solb':'b','La#':'#','Lab':'b',
+  'Si#':'#','Sib':'b',
+};
+
+const DUR_BEATS  = { 'w':4,'h':2,'q':1,'8':0.5,'16':0.25 };
+const DUR_SYMBOL = { 'w':'𝅝','h':'𝅗𝅥','q':'♩','8':'♪','16':'𝅘𝅥𝅯' };
+
+const staffState = {
+  selectedIdx: null,
+  flatNotes: [],
+  songId: null,
+};
+
+function flattenNotes(song) {
+  const out = [];
+  (song.sections || []).forEach(sec => {
+    (sec.lines || []).forEach(line => {
+      line.forEach(syl => {
+        out.push({
+          note: syl.note || '—',
+          text: syl.text || '',
+          dur:  syl.dur  || 'q',
+          secLabel: sec.label,
+        });
+      });
+    });
+  });
+  return out;
+}
+
+function beatsPerBar(timeSig) {
+  const [n, d] = (timeSig || '4/4').split('/').map(Number);
+  return n * (4 / d);
+}
+
+function renderStaff(song) {
+  const outEl   = document.getElementById('vexflow-output');
+  const trackEl = document.getElementById('note-track');
+  outEl.innerHTML   = '';
+  trackEl.innerHTML = '';
+
+  if (!song) {
+    outEl.innerHTML = '<p class="staff-placeholder-msg">Selecciona una canción para ver la partitura.</p>';
+    return;
+  }
+
+  const flat = flattenNotes(song);
+  staffState.flatNotes = flat;
+  staffState.songId    = song.id;
+  staffState.selectedIdx = null;
+
+  if (flat.length === 0) {
+    outEl.innerHTML = '<p class="staff-placeholder-msg">Esta canción no tiene notas.</p>';
+    return;
+  }
+
+  if (!window.Vex) {
+    outEl.innerHTML = '<p class="staff-placeholder-msg">Cargando librería de partitura…</p>';
+    setTimeout(() => renderStaff(song), 800);
+    return;
+  }
+
+  buildNoteTrack(flat, song);
+  buildVexFlow(song, flat);
+}
+
+function buildNoteTrack(flat, song) {
+  const trackEl = document.getElementById('note-track');
+  trackEl.innerHTML = '';
+  let lastSec = '';
+
+  flat.forEach((n, i) => {
+    if (n.secLabel !== lastSec) {
+      lastSec = n.secLabel;
+      const lbl = document.createElement('div');
+      lbl.className = 'note-track-section-label';
+      lbl.textContent = n.secLabel;
+      trackEl.appendChild(lbl);
+    }
+
+    const chip = document.createElement('div');
+    chip.className = 'note-chip' + (n.note === '—' ? ' note-chip-rest' : '');
+    chip.dataset.idx = i;
+    chip.setAttribute('role','option');
+    chip.setAttribute('aria-selected','false');
+    chip.innerHTML = `
+      <span class="note-chip-note">${n.note}</span>
+      <span class="note-chip-dur">${DUR_SYMBOL[n.dur] || '♩'}</span>
+      <span class="note-chip-syl">${n.text.trim() || '—'}</span>`;
+
+    chip.addEventListener('click', () => selectNoteChip(i, song));
+    trackEl.appendChild(chip);
+  });
+}
+
+function selectNoteChip(idx, song) {
+  staffState.selectedIdx = idx;
+  const n = staffState.flatNotes[idx];
+
+  // Actualizar chips visuales
+  document.querySelectorAll('.note-chip').forEach(c => {
+    const sel = parseInt(c.dataset.idx) === idx;
+    c.classList.toggle('selected', sel);
+    c.setAttribute('aria-selected', sel);
+  });
+
+  // Activar botón de duración correspondiente
+  document.querySelectorAll('.dur-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.dur === n.dur);
+  });
+
+  document.getElementById('staff-sel-info').textContent =
+    `Nota ${idx + 1}: ${n.note} — ${n.text.trim() || '(pausa)'}`;
+
+  // Scroll al chip seleccionado
+  const chip = document.querySelector(`.note-chip[data-idx="${idx}"]`);
+  if (chip) chip.scrollIntoView({ behavior:'smooth', block:'nearest' });
+}
+
+function applyDuration(dur, song) {
+  const idx = staffState.selectedIdx;
+  if (idx === null) return;
+
+  // Actualizar en song.sections
+  let cursor = 0;
+  outer: for (const sec of (song.sections || [])) {
+    for (const line of (sec.lines || [])) {
+      for (const syl of line) {
+        if (cursor === idx) {
+          syl.dur = dur;
+          break outer;
+        }
+        cursor++;
+      }
+    }
+  }
+
+  // Actualizar en flatNotes y re-renderizar
+  staffState.flatNotes[idx].dur = dur;
+  saveToStorage();
+
+  // Redibujar track y staff
+  buildNoteTrack(staffState.flatNotes, song);
+  buildVexFlow(song, staffState.flatNotes);
+
+  // Re-seleccionar nota
+  selectNoteChip(idx, song);
+}
+
+function buildVexFlow(song, flat) {
+  const outEl = document.getElementById('vexflow-output');
+  outEl.innerHTML = '';
+
+  const { Renderer, Stave, StaveNote, Voice, Formatter, Accidental, Annotation } = Vex.Flow;
+
+  const timeSig = song.timeSig || '4/4';
+  const bpb     = beatsPerBar(timeSig);
+  const [tsNum, tsDen] = timeSig.split('/').map(Number);
+
+  // Agrupar en compases
+  const measures = [];
+  let cur = [], curBeats = 0;
+  flat.forEach((n, i) => {
+    const b = DUR_BEATS[n.dur] || 1;
+    if (curBeats + b > bpb + 0.001 && cur.length) {
+      measures.push(cur);
+      cur = []; curBeats = 0;
+    }
+    cur.push({ ...n, gi: i });
+    curBeats += b;
+    if (Math.abs(curBeats - bpb) < 0.001) {
+      measures.push(cur);
+      cur = []; curBeats = 0;
+    }
+  });
+  if (cur.length) measures.push(cur);
+
+  // Dimensiones
+  const containerW = outEl.clientWidth || 680;
+  const PER_ROW    = Math.max(1, Math.floor(containerW / 220));
+  const STAVE_W    = Math.floor((containerW - 32) / PER_ROW);
+  const ROW_H      = 130;
+  const PAD        = 16;
+  const rows        = Math.ceil(measures.length / PER_ROW);
+  const totalH      = rows * ROW_H + PAD * 2;
+
+  const div = document.createElement('div');
+  outEl.appendChild(div);
+
+  const renderer = new Renderer(div, Renderer.Backends.SVG);
+  renderer.resize(containerW, totalH);
+  const ctx = renderer.getContext();
+  ctx.setFont('Arial', 10, 'normal');
+
+  measures.forEach((measure, mi) => {
+    const row = Math.floor(mi / PER_ROW);
+    const col = mi % PER_ROW;
+    const x   = PAD + col * STAVE_W;
+    const y   = PAD + row * ROW_H;
+
+    const stave = new Stave(x, y, STAVE_W - 4);
+    if (mi === 0) stave.addClef('treble').addTimeSignature(timeSig);
+    stave.setContext(ctx).draw();
+
+    const voice = new Voice({ num_beats: tsNum, beat_value: tsDen });
+    voice.setStrict(false);
+
+    const staveNotes = measure.map(n => {
+      const isRest = n.note === '—';
+      const vfKey  = isRest ? 'b/4' : (NOTE_VF[n.note] || 'b/4');
+      const dur    = (n.dur || 'q') + (isRest ? 'r' : '');
+
+      const sn = new StaveNote({ keys: [vfKey], duration: dur });
+
+      if (!isRest && NOTE_VF_ACC[n.note]) {
+        sn.addModifier(new Accidental(NOTE_VF_ACC[n.note]));
+      }
+
+      if (n.text && n.text.trim()) {
+        try {
+          const ann = new Annotation(n.text.trim())
+            .setFont('Arial', 9, 'normal')
+            .setVerticalJustification(Annotation.VerticalJustify.BOTTOM);
+          sn.addModifier(ann);
+        } catch(e) { /* anotación opcional */ }
+      }
+
+      return sn;
+    });
+
+    voice.addTickables(staveNotes);
+
+    try {
+      new Formatter().joinVoices([voice]).format([voice], STAVE_W - 24);
+      voice.draw(ctx, stave);
+    } catch(e) {
+      console.warn('VexFlow render:', e.message);
+    }
+  });
+}
+
+function initStaffView() {
+  // Botones de duración
+  document.querySelectorAll('.dur-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      if (staffState.selectedIdx === null) {
+        showToast('Selecciona una nota en la fila de abajo primero', 'info');
+        return;
+      }
+      const song = state.songs.find(s => s.id === state.activeSongId);
+      if (song) applyDuration(btn.dataset.dur, song);
+    });
+  });
 }

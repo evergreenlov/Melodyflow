@@ -278,38 +278,28 @@
           </div>
         </article>
 
-        <!-- Vista: Partitura (Pentagrama SVG) -->
+        <!-- Vista: Partitura — VexFlow -->
         <article id="view-staff" class="content-view staff-view" aria-label="Vista de partitura" hidden>
-          <div id="staff-container" class="staff-container">
-            <svg id="staff-svg" viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg"
-                 role="img" aria-label="Pentagrama musical" class="staff-svg">
-              <!-- Pentagrama base -->
-              <g id="staff-lines" class="staff-lines">
-                <line x1="60" y1="80"  x2="860" y2="80"  stroke="currentColor" stroke-width="1.5"/>
-                <line x1="60" y1="100" x2="860" y2="100" stroke="currentColor" stroke-width="1.5"/>
-                <line x1="60" y1="120" x2="860" y2="120" stroke="currentColor" stroke-width="1.5"/>
-                <line x1="60" y1="140" x2="860" y2="140" stroke="currentColor" stroke-width="1.5"/>
-                <line x1="60" y1="160" x2="860" y2="160" stroke="currentColor" stroke-width="1.5"/>
-              </g>
-              <!-- Clave de Sol -->
-              <text id="staff-clef" x="65" y="155" font-size="90" class="staff-clef" aria-hidden="true">𝄞</text>
-              <!-- Compás -->
-              <line x1="60" y1="80" x2="60" y2="160" stroke="currentColor" stroke-width="2"/>
-              <!-- Notas (placeholder) -->
-              <g id="staff-notes-group">
-                <text x="200" y="100" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
-                <text x="300" y="110" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
-                <text x="400" y="120" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
-                <text x="500" y="110" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
-                <text x="600" y="100" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
-              </g>
-              <!-- Mensaje placeholder -->
-              <text id="staff-placeholder" x="450" y="220" text-anchor="middle" font-size="13"
-                    class="staff-placeholder" fill="var(--text-muted)">
-                Selecciona una canción para ver la partitura completa
-              </text>
-            </svg>
+
+          <!-- Barra de duración -->
+          <div class="staff-toolbar" role="toolbar" aria-label="Editar duración de nota">
+            <span class="staff-toolbar-label">Duración:</span>
+            <div class="dur-btns" role="group">
+              <button class="dur-btn" data-dur="w"  title="Redonda (4 tiempos)">𝅝<span>Redonda</span></button>
+              <button class="dur-btn" data-dur="h"  title="Blanca (2 tiempos)">𝅗𝅥<span>Blanca</span></button>
+              <button class="dur-btn active" data-dur="q" title="Negra (1 tiempo)">♩<span>Negra</span></button>
+              <button class="dur-btn" data-dur="8"  title="Corchea (½ tiempo)">♪<span>Corchea</span></button>
+              <button class="dur-btn" data-dur="16" title="Semicorchea (¼ tiempo)">𝅘𝅥𝅯<span>Semicorchea</span></button>
+            </div>
+            <span id="staff-sel-info" class="staff-sel-info">Haz clic en una ficha para editar</span>
           </div>
+
+          <!-- Pentagrama VexFlow -->
+          <div id="vexflow-output" class="vexflow-output" aria-live="polite"></div>
+
+          <!-- Fila de fichas de notas editables -->
+          <div id="note-track" class="note-track" role="listbox" aria-label="Notas editables"></div>
+
         </article>
 
       </div>
@@ -549,6 +539,16 @@
           </div>
 
           <div class="form-field">
+            <label class="form-label" for="field-timesig">Compás</label>
+            <select id="field-timesig" class="form-select">
+              <option value="4/4" selected>4/4 — Cuatro por cuatro</option>
+              <option value="3/4">3/4 — Tres por cuatro (vals)</option>
+              <option value="2/4">2/4 — Dos por cuatro</option>
+              <option value="6/8">6/8 — Seis por ocho</option>
+            </select>
+          </div>
+
+          <div class="form-field">
             <label class="form-label" for="field-bpm">Tempo (BPM)</label>
             <div class="bpm-field-wrap">
               <input type="number" id="field-bpm" class="form-input" value="100"
@@ -637,6 +637,7 @@
     </div>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/vexflow@4/build/cjs/vexflow.js"></script>
   <script src="transposition.js"></script>
   <script src="app.js"></script>
   <script>
