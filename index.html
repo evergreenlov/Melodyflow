@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MelodyFlow — Práctica Musical Inteligente</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+</head>
+<body>
+
+  <!-- ══════════════════════════════════════════════
+       HEADER GLOBAL
+  ══════════════════════════════════════════════ -->
+  <header id="app-header" role="banner">
+    <div class="header-brand">
+      <span class="brand-icon" aria-hidden="true">♪</span>
+      <span class="brand-name">Melody<span class="brand-accent">Flow</span></span>
+    </div>
+
+    <nav id="mobile-tab-nav" role="tablist" aria-label="Navegación principal">
+      <button class="tab-btn active" role="tab" aria-selected="true"
+              aria-controls="panel-library" data-tab="library" id="tab-library">
+        <span class="tab-icon">≡</span> Biblioteca
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false"
+              aria-controls="panel-viewer" data-tab="viewer" id="tab-viewer">
+        <span class="tab-icon">♫</span> Partitura
+      </button>
+      <button class="tab-btn" role="tab" aria-selected="false"
+              aria-controls="panel-practice" data-tab="practice" id="tab-practice">
+        <span class="tab-icon">◎</span> Práctica
+      </button>
+    </nav>
+
+    <div class="header-actions">
+      <button id="btn-theme-toggle" class="icon-btn" aria-label="Cambiar tema" title="Cambiar tema">
+        <span aria-hidden="true">◑</span>
+      </button>
+      <button id="btn-settings" class="icon-btn" aria-label="Configuración" title="Configuración">
+        <span aria-hidden="true">⚙</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ══════════════════════════════════════════════
+       LAYOUT PRINCIPAL — TRES PANELES
+  ══════════════════════════════════════════════ -->
+  <main id="app-main" role="main">
+
+    <!-- ─────────────────────────────────────────
+         PANEL IZQUIERDO — Biblioteca & Filtros
+    ───────────────────────────────────────── -->
+    <aside id="panel-library" class="panel panel-left" role="tabpanel"
+           aria-labelledby="tab-library">
+
+      <div class="panel-inner">
+        <!-- Buscador -->
+        <section class="lib-search-section" aria-label="Buscar canciones">
+          <div class="search-wrap">
+            <span class="search-icon" aria-hidden="true">⌕</span>
+            <input
+              type="search"
+              id="song-search-input"
+              class="search-input"
+              placeholder="Buscar canción, artista…"
+              autocomplete="off"
+              aria-label="Buscar canción"
+            />
+            <button id="btn-clear-search" class="search-clear-btn" aria-label="Limpiar búsqueda" hidden>✕</button>
+          </div>
+        </section>
+
+        <!-- Selector de Instrumento -->
+        <section class="lib-instrument-section" aria-label="Selector de instrumento">
+          <h2 class="section-label">Instrumento</h2>
+          <div class="instrument-grid" role="radiogroup" aria-label="Instrumento activo">
+
+            <label class="instrument-card active" id="instr-label-flute">
+              <input type="radio" name="instrument" value="flute" id="instr-flute" checked aria-label="Flauta en Do" />
+              <span class="instr-emoji" aria-hidden="true">🎶</span>
+              <span class="instr-name">Flauta</span>
+              <span class="instr-key">Do</span>
+            </label>
+
+            <label class="instrument-card" id="instr-label-trumpet">
+              <input type="radio" name="instrument" value="trumpet" id="instr-trumpet" aria-label="Trompeta en Sib" />
+              <span class="instr-emoji" aria-hidden="true">🎺</span>
+              <span class="instr-name">Trompeta</span>
+              <span class="instr-key">Sib</span>
+            </label>
+
+            <label class="instrument-card" id="instr-label-saxophone">
+              <input type="radio" name="instrument" value="saxophone" id="instr-saxophone" aria-label="Saxofón Alto en Mib" />
+              <span class="instr-emoji" aria-hidden="true">🎷</span>
+              <span class="instr-name">Saxo Alto</span>
+              <span class="instr-key">Mib</span>
+            </label>
+
+            <label class="instrument-card" id="instr-label-violin">
+              <input type="radio" name="instrument" value="violin" id="instr-violin" aria-label="Violín en Do" />
+              <span class="instr-emoji" aria-hidden="true">🎻</span>
+              <span class="instr-name">Violín</span>
+              <span class="instr-key">Do</span>
+            </label>
+
+            <label class="instrument-card" id="instr-label-clarinet">
+              <input type="radio" name="instrument" value="clarinet" id="instr-clarinet" aria-label="Clarinete en Sib" />
+              <span class="instr-emoji" aria-hidden="true">🎵</span>
+              <span class="instr-name">Clarinete</span>
+              <span class="instr-key">Sib</span>
+            </label>
+
+            <label class="instrument-card" id="instr-label-cello">
+              <input type="radio" name="instrument" value="cello" id="instr-cello" aria-label="Cello en Do" />
+              <span class="instr-emoji" aria-hidden="true">🎼</span>
+              <span class="instr-name">Cello</span>
+              <span class="instr-key">Do</span>
+            </label>
+
+          </div>
+        </section>
+
+        <!-- Filtros de Dificultad -->
+        <section class="lib-filter-section" aria-label="Filtros de dificultad">
+          <h2 class="section-label">Ordenar por</h2>
+          <div class="filter-row">
+            <button id="filter-alpha" class="filter-chip active" data-filter="alpha" aria-pressed="true">
+              A → Z
+            </button>
+            <button id="filter-beginner" class="filter-chip" data-filter="beginner" aria-pressed="false">
+              Principiante
+            </button>
+            <button id="filter-intermediate" class="filter-chip" data-filter="intermediate" aria-pressed="false">
+              Intermedio
+            </button>
+            <button id="filter-advanced" class="filter-chip" data-filter="advanced" aria-pressed="false">
+              Avanzado
+            </button>
+          </div>
+        </section>
+
+        <!-- Lista de Canciones -->
+        <section class="lib-songlist-section" aria-label="Lista de canciones">
+          <div class="songlist-header">
+            <h2 class="section-label">Canciones</h2>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span id="song-count" class="song-count" aria-live="polite">0 canciones</span>
+              <button id="btn-add-song" class="btn-add-song" aria-label="Agregar canción" title="Agregar canción nueva">
+                <span aria-hidden="true">＋</span>
+              </button>
+            </div>
+          </div>
+          <ul id="song-list" class="song-list" role="listbox" aria-label="Canciones disponibles" aria-activedescendant="">
+            <!-- Generado dinámicamente por app.js -->
+          </ul>
+        </section>
+
+        <div class="library-data-bar">
+          <button id="btn-export" class="data-bar-btn" title="Exportar canciones a archivo JSON">
+            <span aria-hidden="true">↓</span> Exportar
+          </button>
+          <label class="data-bar-btn" title="Importar canciones desde archivo JSON">
+            <span aria-hidden="true">↑</span> Importar
+            <input type="file" id="input-import" accept=".json" style="display:none" />
+          </label>
+          <span id="storage-indicator" class="storage-indicator" aria-live="polite"></span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ─────────────────────────────────────────
+         PANEL CENTRAL — Visor de Canción
+    ───────────────────────────────────────── -->
+    <section id="panel-viewer" class="panel panel-center" role="tabpanel"
+             aria-labelledby="tab-viewer">
+
+      <!-- Cabecera de la canción -->
+      <header id="song-header" class="song-header" aria-label="Información de la canción">
+        <div class="song-meta">
+          <h1 id="song-title" class="song-title">Selecciona una canción</h1>
+          <p id="song-artist" class="song-artist">— Compositor / Artista</p>
+        </div>
+        <div class="song-info-badges">
+          <span class="badge badge-tempo" id="badge-bpm" title="Tempo">
+            <span class="badge-icon" aria-hidden="true">♩</span>
+            <span id="display-bpm">— </span><small>BPM</small>
+          </span>
+          <span class="badge badge-key" id="badge-key" title="Tonalidad">
+            <span class="badge-icon" aria-hidden="true">♯</span>
+            <span id="display-key">—</span>
+          </span>
+          <span class="badge badge-difficulty" id="badge-difficulty" title="Dificultad">
+            <span id="display-difficulty">—</span>
+          </span>
+        </div>
+      </header>
+
+      <!-- Controles de Vista -->
+      <div class="view-controls" role="toolbar" aria-label="Controles de vista">
+        <div class="view-toggle-group" role="group" aria-label="Modo de visualización">
+          <button id="btn-view-lyrics" class="view-toggle-btn active" aria-pressed="true"
+                  data-view="lyrics">
+            <span aria-hidden="true">♪</span> Letra + Notas
+          </button>
+          <button id="btn-view-staff" class="view-toggle-btn" aria-pressed="false"
+                  data-view="staff">
+            <span aria-hidden="true">♬</span> Partitura
+          </button>
+        </div>
+
+        <!-- ── Control de Transposición Manual ── -->
+        <div class="transpose-control" role="group" aria-label="Transposición manual de tonalidad">
+          <span class="ctrl-label">Tono</span>
+
+          <button id="btn-transpose-down" class="transpose-step-btn"
+                  aria-label="Bajar un semitono (bemol)" title="Bajar ½ tono (bemol)">
+            ♭−
+          </button>
+
+          <div class="transpose-key-wrap">
+            <select id="transpose-key-select" class="transpose-key-select"
+                    aria-label="Seleccionar tonalidad de destino">
+              <!-- Opciones generadas por JS -->
+            </select>
+            <button id="btn-transpose-reset" class="transpose-reset-btn"
+                    aria-label="Restaurar tonalidad original" title="Restaurar original" hidden>
+              ↺
+            </button>
+          </div>
+
+          <button id="btn-transpose-up" class="transpose-step-btn"
+                  aria-label="Subir un semitono (sostenido)" title="Subir ½ tono (sostenido)">
+            ♯+
+          </button>
+        </div>
+
+        <div class="display-controls" role="group" aria-label="Controles de visualización">
+          <label class="ctrl-label" for="font-size-range">Tamaño</label>
+          <input type="range" id="font-size-range" class="range-input"
+                 min="14" max="32" value="20" step="1"
+                 aria-label="Tamaño de fuente" aria-valuemin="14" aria-valuemax="32" />
+          <span id="font-size-display" class="ctrl-value" aria-live="polite">20px</span>
+
+          <label class="ctrl-label" for="scroll-speed-range">Scroll</label>
+          <input type="range" id="scroll-speed-range" class="range-input"
+                 min="1" max="10" value="3" step="1"
+                 aria-label="Velocidad de desplazamiento" aria-valuemin="1" aria-valuemax="10" />
+          <span id="scroll-speed-display" class="ctrl-value" aria-live="polite">×3</span>
+
+          <button id="btn-autoscroll" class="autoscroll-btn" aria-pressed="false"
+                  title="Auto-Scroll automático">
+            <span class="btn-icon" aria-hidden="true">▶</span>
+            <span class="btn-label">Auto-Scroll</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Área de Contenido de la Canción -->
+      <div id="song-content-area" class="song-content-area" aria-live="polite" aria-atomic="false">
+
+        <!-- Vista: Letra con Notas -->
+        <article id="view-lyrics" class="content-view lyrics-view active" aria-label="Vista de letra con notas">
+          <div id="lyrics-container" class="lyrics-container">
+            <div class="empty-state">
+              <div class="empty-icon" aria-hidden="true">♩</div>
+              <p>Selecciona una canción de la biblioteca para comenzar a practicar.</p>
+            </div>
+          </div>
+        </article>
+
+        <!-- Vista: Partitura (Pentagrama SVG) -->
+        <article id="view-staff" class="content-view staff-view" aria-label="Vista de partitura" hidden>
+          <div id="staff-container" class="staff-container">
+            <svg id="staff-svg" viewBox="0 0 900 280" xmlns="http://www.w3.org/2000/svg"
+                 role="img" aria-label="Pentagrama musical" class="staff-svg">
+              <!-- Pentagrama base -->
+              <g id="staff-lines" class="staff-lines">
+                <line x1="60" y1="80"  x2="860" y2="80"  stroke="currentColor" stroke-width="1.5"/>
+                <line x1="60" y1="100" x2="860" y2="100" stroke="currentColor" stroke-width="1.5"/>
+                <line x1="60" y1="120" x2="860" y2="120" stroke="currentColor" stroke-width="1.5"/>
+                <line x1="60" y1="140" x2="860" y2="140" stroke="currentColor" stroke-width="1.5"/>
+                <line x1="60" y1="160" x2="860" y2="160" stroke="currentColor" stroke-width="1.5"/>
+              </g>
+              <!-- Clave de Sol -->
+              <text id="staff-clef" x="65" y="155" font-size="90" class="staff-clef" aria-hidden="true">𝄞</text>
+              <!-- Compás -->
+              <line x1="60" y1="80" x2="60" y2="160" stroke="currentColor" stroke-width="2"/>
+              <!-- Notas (placeholder) -->
+              <g id="staff-notes-group">
+                <text x="200" y="100" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
+                <text x="300" y="110" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
+                <text x="400" y="120" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
+                <text x="500" y="110" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
+                <text x="600" y="100" font-size="36" class="staff-note-glyph" fill="var(--color-gold)">♩</text>
+              </g>
+              <!-- Mensaje placeholder -->
+              <text id="staff-placeholder" x="450" y="220" text-anchor="middle" font-size="13"
+                    class="staff-placeholder" fill="var(--text-muted)">
+                Selecciona una canción para ver la partitura completa
+              </text>
+            </svg>
+          </div>
+        </article>
+
+      </div>
+
+    </section>
+
+    <!-- ─────────────────────────────────────────
+         PANEL DERECHO — Panel de Práctica
+    ───────────────────────────────────────── -->
+    <aside id="panel-practice" class="panel panel-right" role="tabpanel"
+           aria-labelledby="tab-practice">
+
+      <div class="panel-inner">
+        <h2 class="panel-title">Herramientas de Práctica</h2>
+
+        <!-- ── Metrónomo Visual ── -->
+        <section class="tool-card" id="tool-metronome" aria-label="Metrónomo">
+          <div class="tool-card-header">
+            <h3 class="tool-title">
+              <span aria-hidden="true">♩</span> Metrónomo
+            </h3>
+            <button id="btn-metronome-toggle" class="tool-toggle-btn" aria-pressed="false"
+                    aria-label="Activar metrónomo">
+              <span class="toggle-indicator"></span>
+            </button>
+          </div>
+
+          <div class="metronome-display" aria-label="Display del metrónomo">
+            <div class="metronome-visual" aria-hidden="true">
+              <div class="metro-pendulum-track">
+                <div id="metro-pendulum" class="metro-pendulum"></div>
+              </div>
+              <div class="metro-base"></div>
+            </div>
+            <div class="metronome-bpm-control">
+              <button id="btn-bpm-down" class="bpm-adj-btn" aria-label="Reducir BPM">−</button>
+              <div class="bpm-display-wrap">
+                <span id="metro-bpm-value" class="bpm-value" aria-live="polite" aria-label="Tempo actual">120</span>
+                <span class="bpm-label">BPM</span>
+              </div>
+              <button id="btn-bpm-up" class="bpm-adj-btn" aria-label="Aumentar BPM">+</button>
+            </div>
+            <div class="beat-indicators" aria-hidden="true">
+              <span class="beat-dot" id="beat-1"></span>
+              <span class="beat-dot" id="beat-2"></span>
+              <span class="beat-dot" id="beat-3"></span>
+              <span class="beat-dot" id="beat-4"></span>
+            </div>
+            <div class="time-sig-control">
+              <label class="ctrl-label" for="select-time-sig">Compás</label>
+              <select id="select-time-sig" class="select-input" aria-label="Compás musical">
+                <option value="4">4/4</option>
+                <option value="3">3/4</option>
+                <option value="6">6/8</option>
+                <option value="2">2/4</option>
+              </select>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Afinador ── -->
+        <section class="tool-card" id="tool-tuner" aria-label="Afinador">
+          <div class="tool-card-header">
+            <h3 class="tool-title">
+              <span aria-hidden="true">◎</span> Afinador
+            </h3>
+            <button id="btn-tuner-toggle" class="tool-toggle-btn" aria-pressed="false"
+                    aria-label="Activar afinador">
+              <span class="toggle-indicator"></span>
+            </button>
+          </div>
+
+          <div class="tuner-display" aria-label="Display del afinador">
+            <div class="tuner-note-display">
+              <span id="tuner-detected-note" class="tuner-note" aria-live="polite" aria-label="Nota detectada">—</span>
+              <span id="tuner-octave" class="tuner-octave" aria-live="polite">—</span>
+            </div>
+            <div class="tuner-meter" role="img" aria-label="Medidor de afinación">
+              <div class="tuner-meter-track">
+                <div class="tuner-meter-center-line" aria-hidden="true"></div>
+                <div id="tuner-needle" class="tuner-needle" aria-hidden="true"></div>
+              </div>
+              <div class="tuner-meter-labels" aria-hidden="true">
+                <span>-50</span>
+                <span>0</span>
+                <span>+50</span>
+              </div>
+            </div>
+            <div id="tuner-status" class="tuner-status" aria-live="polite">
+              Activa el afinador para detectar audio
+            </div>
+            <div class="tuner-freq-display">
+              <span id="tuner-frequency" class="tuner-freq" aria-live="polite" aria-label="Frecuencia">— Hz</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- ── Pista de Acompañamiento ── -->
+        <section class="tool-card" id="tool-backing-track" aria-label="Pista de acompañamiento">
+          <div class="tool-card-header">
+            <h3 class="tool-title">
+              <span aria-hidden="true">♬</span> Backing Track
+            </h3>
+          </div>
+
+          <div class="backing-track-display" aria-label="Reproductor de pista de acompañamiento">
+            <div class="track-info">
+              <span id="backing-track-name" class="track-name">Sin pista cargada</span>
+              <span class="track-genre-badge" id="backing-genre">—</span>
+            </div>
+
+            <div class="track-waveform" aria-hidden="true">
+              <div class="waveform-bars" id="waveform-bars">
+                <!-- Generado por JS -->
+              </div>
+              <div id="waveform-progress" class="waveform-progress"></div>
+            </div>
+
+            <div class="track-time-row" aria-label="Tiempo de reproducción">
+              <span id="track-current-time" class="track-time" aria-live="polite">0:00</span>
+              <input type="range" id="track-seek" class="range-input track-seek-bar"
+                     min="0" max="100" value="0" aria-label="Posición de reproducción" />
+              <span id="track-total-time" class="track-time">0:00</span>
+            </div>
+
+            <div class="track-controls" role="group" aria-label="Controles de reproducción">
+              <button id="btn-track-prev" class="track-ctrl-btn" aria-label="Pista anterior">⏮</button>
+              <button id="btn-track-play" class="track-ctrl-btn track-play-btn" aria-label="Reproducir pista">▶</button>
+              <button id="btn-track-next" class="track-ctrl-btn" aria-label="Pista siguiente">⏭</button>
+              <button id="btn-track-loop" class="track-ctrl-btn" aria-label="Repetir" aria-pressed="false">⟳</button>
+            </div>
+
+            <div class="volume-control" role="group" aria-label="Control de volumen">
+              <span class="vol-icon" aria-hidden="true">♪</span>
+              <input type="range" id="track-volume" class="range-input"
+                     min="0" max="100" value="80" aria-label="Volumen" />
+              <span id="track-volume-display" class="ctrl-value" aria-live="polite">80%</span>
+            </div>
+
+            <div class="track-list" aria-label="Lista de pistas disponibles">
+              <p class="track-list-label">Pistas disponibles:</p>
+              <ul id="backing-track-list" class="backing-track-list" role="listbox" aria-label="Pistas de acompañamiento">
+                <li class="backing-track-item active" role="option" aria-selected="true" data-track="0">
+                  <span class="bi-name">Slow Ballad — Do Mayor</span>
+                  <span class="bi-bpm">♩ 70</span>
+                </li>
+                <li class="backing-track-item" role="option" aria-selected="false" data-track="1">
+                  <span class="bi-name">Pop Groove — Sol Mayor</span>
+                  <span class="bi-bpm">♩ 100</span>
+                </li>
+                <li class="backing-track-item" role="option" aria-selected="false" data-track="2">
+                  <span class="bi-name">Jazz Waltz — Fa Mayor</span>
+                  <span class="bi-bpm">♩ 85</span>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ══════════════════════════════════════════════
+       TOAST / NOTIFICATION AREA
+  ══════════════════════════════════════════════ -->
+  <div id="toast-container" class="toast-container" role="status" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- ══════════════════════════════════════════════
+       MODAL — AGREGAR / EDITAR CANCIÓN
+  ══════════════════════════════════════════════ -->
+  <div id="song-editor-overlay" class="modal-overlay" role="dialog" aria-modal="true"
+       aria-labelledby="modal-title" hidden>
+    <div class="modal-box" id="song-editor-box">
+
+      <!-- Header del modal -->
+      <div class="modal-header">
+        <h2 class="modal-title" id="modal-title">
+          <span aria-hidden="true">♪</span> Nueva Canción
+        </h2>
+        <button id="btn-modal-close" class="modal-close-btn" aria-label="Cerrar editor">✕</button>
+      </div>
+
+      <!-- Tabs de navegación -->
+      <div class="modal-tabs" role="tablist" aria-label="Secciones del editor">
+        <button class="modal-tab active" role="tab" aria-selected="true"
+                aria-controls="mtab-info" id="mtab-btn-info" data-mtab="info">
+          ① Información
+        </button>
+        <button class="modal-tab" role="tab" aria-selected="false"
+                aria-controls="mtab-sections" id="mtab-btn-sections" data-mtab="sections">
+          ② Letra y Notas
+        </button>
+        <button class="modal-tab" role="tab" aria-selected="false"
+                aria-controls="mtab-preview" id="mtab-btn-preview" data-mtab="preview">
+          ③ Vista Previa
+        </button>
+      </div>
+
+      <!-- ── Tab 1: Información básica ── -->
+      <div class="modal-tab-panel active" id="mtab-info" role="tabpanel" aria-labelledby="mtab-btn-info">
+        <div class="form-grid">
+          <div class="form-field form-field--full">
+            <label class="form-label" for="field-title">Título de la canción <span class="req">*</span></label>
+            <input type="text" id="field-title" class="form-input"
+                   placeholder="Ej: Ode to Joy" autocomplete="off" maxlength="120" />
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="field-artist">Compositor / Artista <span class="req">*</span></label>
+            <input type="text" id="field-artist" class="form-input"
+                   placeholder="Ej: L. van Beethoven" autocomplete="off" maxlength="100" />
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="field-key">Tonalidad original</label>
+            <select id="field-key" class="form-select">
+              <option value="Do Mayor">Do Mayor</option>
+              <option value="Sol Mayor">Sol Mayor</option>
+              <option value="Re Mayor">Re Mayor</option>
+              <option value="La Mayor">La Mayor</option>
+              <option value="Mi Mayor">Mi Mayor</option>
+              <option value="Si Mayor">Si Mayor</option>
+              <option value="Fa Mayor">Fa Mayor</option>
+              <option value="Sib Mayor">Sib Mayor</option>
+              <option value="Mib Mayor">Mib Mayor</option>
+              <option value="Lab Mayor">Lab Mayor</option>
+              <option value="La menor">La menor</option>
+              <option value="Mi menor">Mi menor</option>
+              <option value="Re menor">Re menor</option>
+              <option value="Sol menor">Sol menor</option>
+              <option value="Do menor">Do menor</option>
+              <option value="Fa menor">Fa menor</option>
+              <option value="Do# menor">Do# menor</option>
+            </select>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="field-bpm">Tempo (BPM)</label>
+            <div class="bpm-field-wrap">
+              <input type="number" id="field-bpm" class="form-input" value="100"
+                     min="20" max="300" step="1" />
+              <input type="range" id="field-bpm-range" class="range-input bpm-range"
+                     min="20" max="300" value="100" step="1" aria-label="Tempo visual" />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label class="form-label" for="field-difficulty">Nivel de dificultad</label>
+            <div class="diff-selector" role="radiogroup" aria-label="Dificultad">
+              <label class="diff-option diff-beginner">
+                <input type="radio" name="new-difficulty" value="beginner" checked />
+                <span>Principiante</span>
+              </label>
+              <label class="diff-option diff-intermediate">
+                <input type="radio" name="new-difficulty" value="intermediate" />
+                <span>Intermedio</span>
+              </label>
+              <label class="diff-option diff-advanced">
+                <input type="radio" name="new-difficulty" value="advanced" />
+                <span>Avanzado</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-hint">
+          <span aria-hidden="true">ℹ</span>
+          Los campos marcados con <span class="req">*</span> son obligatorios.
+        </div>
+      </div>
+
+      <!-- ── Tab 2: Letra y Notas ── -->
+      <div class="modal-tab-panel" id="mtab-sections" role="tabpanel"
+           aria-labelledby="mtab-btn-sections" hidden>
+
+        <div class="format-guide">
+          <strong>Cómo entrar la letra:</strong>
+          Escribe las notas y las sílabas en filas separadas, cada palabra separada por espacio.
+          Las notas y sílabas se emparejan por posición.<br>
+          Usa <code>—</code> en Notas para una sílaba sin melodía (pausa, puntuación, etc.)
+        </div>
+
+        <div id="sections-editor" class="sections-editor">
+          <!-- Secciones generadas dinámicamente -->
+        </div>
+
+        <button id="btn-add-section" class="btn-add-section">
+          <span aria-hidden="true">＋</span> Agregar sección
+        </button>
+      </div>
+
+      <!-- ── Tab 3: Vista Previa ── -->
+      <div class="modal-tab-panel" id="mtab-preview" role="tabpanel"
+           aria-labelledby="mtab-btn-preview" hidden>
+        <div class="preview-header">
+          <span id="preview-title" class="preview-song-title">—</span>
+          <span id="preview-artist" class="preview-song-artist">—</span>
+          <div class="preview-badges">
+            <span class="preview-badge" id="preview-bpm">— BPM</span>
+            <span class="preview-badge" id="preview-key">—</span>
+            <span class="preview-badge" id="preview-diff">—</span>
+          </div>
+        </div>
+        <div id="preview-lyrics" class="preview-lyrics">
+          <p class="preview-empty">Completa los pasos anteriores para ver la vista previa.</p>
+        </div>
+      </div>
+
+      <!-- Footer con acciones -->
+      <div class="modal-footer">
+        <div class="modal-footer-left">
+          <button id="btn-modal-prev" class="btn-modal-nav" disabled>← Anterior</button>
+          <button id="btn-modal-next" class="btn-modal-nav">Siguiente →</button>
+        </div>
+        <div class="modal-footer-right">
+          <button id="btn-modal-cancel" class="btn-secondary">Cancelar</button>
+          <button id="btn-modal-save" class="btn-primary" disabled>
+            <span aria-hidden="true">♪</span> Guardar canción
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="transposition.js"></script>
+  <script src="app.js"></script>
+  <script>
+    // Pruebas del motor de transposición visibles en DevTools → Consola
+    document.addEventListener('DOMContentLoaded', () => Transposition.runTests());
+  </script>
+</body>
+</html>

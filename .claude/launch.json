@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "melodyflow",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["-m", "http.server", "5050", "--directory", "/Volumes/MYRIAM SEAG/evergreen-love/melodyflow"],
+      "port": 5050
+    }
+  ]
+}
