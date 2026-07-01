@@ -737,30 +737,43 @@ const CHORD_EN_INDEX = {
   'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,
   'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
 };
-const IDX_TO_ES = ['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'];
-const IDX_TO_EN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+// Tablas con sostenidos (por defecto) y con bemoles (cuando el usuario los escribe)
+const IDX_TO_ES_SHARP = ['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'];
+const IDX_TO_ES_FLAT  = ['Do','Reb','Re','Mib','Mi','Fa','Solb','Sol','Lab','La','Sib','Si'];
+const IDX_TO_EN_SHARP = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const IDX_TO_EN_FLAT  = ['C','Db','D','Eb','E','F','Gb','G','Ab','A','Bb','B'];
+// Compatibilidad (nombres antiguos = sostenidos)
+const IDX_TO_ES = IDX_TO_ES_SHARP;
+const IDX_TO_EN = IDX_TO_EN_SHARP;
+
+function idxToName(idx, notation, flat) {
+  if (notation === 'es') return flat ? IDX_TO_ES_FLAT[idx] : IDX_TO_ES_SHARP[idx];
+  return flat ? IDX_TO_EN_FLAT[idx] : IDX_TO_EN_SHARP[idx];
+}
 
 function capitalizeEsRoot(s) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
-/** Parsea solo la raíz (nota) al inicio de un texto. Devuelve {root, rest} o null. */
+/** Parsea solo la raíz (nota). Devuelve {root, rest, flat} o null. flat = usó bemol. */
 function parseChordRoot(str) {
   const s = (str || '').trim();
   // Raíz española primero (Do, Re, Mi, Fa, Sol, La, Si)
   const esMatch = s.match(/^(do|re|mi|fa|sol|la|si)(#|b)?/i);
   if (esMatch) {
-    const key = capitalizeEsRoot(esMatch[1]) + (esMatch[2] ? esMatch[2].toLowerCase() : '');
+    const acc = esMatch[2] ? esMatch[2].toLowerCase() : '';
+    const key = capitalizeEsRoot(esMatch[1]) + acc;
     if (CHORD_ES_INDEX[key] !== undefined) {
-      return { root: CHORD_ES_INDEX[key], rest: s.slice(esMatch[0].length) };
+      return { root: CHORD_ES_INDEX[key], rest: s.slice(esMatch[0].length), flat: acc === 'b' };
     }
   }
   // Raíz americana (A–G)
   const enMatch = s.match(/^([a-g])(#|b)?/i);
   if (enMatch) {
-    const key = enMatch[1].toUpperCase() + (enMatch[2] ? enMatch[2].toLowerCase() : '');
+    const acc = enMatch[2] ? enMatch[2].toLowerCase() : '';
+    const key = enMatch[1].toUpperCase() + acc;
     if (CHORD_EN_INDEX[key] !== undefined) {
-      return { root: CHORD_EN_INDEX[key], rest: s.slice(enMatch[0].length) };
+      return { root: CHORD_EN_INDEX[key], rest: s.slice(enMatch[0].length), flat: acc === 'b' };
     }
   }
   return null;
@@ -786,34 +799,33 @@ function parseChord(tokenRaw) {
   const main = parseChordRoot(mainPart);
   if (!main) return null;
 
-  let bass = null;
+  let bass = null, bassFlat = false;
   if (bassStr) {
     const b = parseChordRoot(bassStr);
-    if (b) bass = b.root;
+    if (b) { bass = b.root; bassFlat = b.flat; }
   }
 
-  return { root: main.root, quality: main.rest, bass };
+  return { root: main.root, quality: main.rest, bass, flat: main.flat, bassFlat };
 }
 
-/** Convierte un token de acorde a su forma canónica americana para guardar. */
+/** Convierte un token de acorde a su forma canónica americana (conserva bemol/sostenido). */
 function canonicalChord(tokenRaw) {
   const c = parseChord(tokenRaw);
   if (!c) return null;
-  let s = IDX_TO_EN[c.root] + c.quality;
-  if (c.bass !== null && c.bass !== undefined) s += '/' + IDX_TO_EN[c.bass];
+  let s = idxToName(c.root, 'en', c.flat) + c.quality;
+  if (c.bass !== null && c.bass !== undefined) s += '/' + idxToName(c.bass, 'en', c.bassFlat);
   return s;
 }
 
-/** Da formato a un acorde guardado transponiéndolo y en la notación elegida. */
+/** Da formato a un acorde guardado transponiéndolo y en la notación elegida (conserva bemol). */
 function formatChord(storedChord, semitones = 0) {
   const c = parseChord(storedChord);
   if (!c) return '';
-  const map = chordNotation === 'es' ? IDX_TO_ES : IDX_TO_EN;
   const rootIdx = (((c.root + semitones) % 12) + 12) % 12;
-  let s = map[rootIdx] + c.quality;
+  let s = idxToName(rootIdx, chordNotation, c.flat) + c.quality;
   if (c.bass !== null && c.bass !== undefined) {
     const bassIdx = (((c.bass + semitones) % 12) + 12) % 12;
-    s += '/' + map[bassIdx];
+    s += '/' + idxToName(bassIdx, chordNotation, c.bassFlat);
   }
   return s;
 }
@@ -2087,10 +2099,10 @@ function transposeStoredChord(chord, semitones) {
   const c = parseChord(chord);
   if (!c) return chord;
   const rootIdx = (((c.root + semitones) % 12) + 12) % 12;
-  let s = IDX_TO_EN[rootIdx] + c.quality;
+  let s = idxToName(rootIdx, 'en', c.flat) + c.quality;
   if (c.bass !== null && c.bass !== undefined) {
     const bassIdx = (((c.bass + semitones) % 12) + 12) % 12;
-    s += '/' + IDX_TO_EN[bassIdx];
+    s += '/' + idxToName(bassIdx, 'en', c.bassFlat);
   }
   return s;
 }
