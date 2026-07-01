@@ -1917,6 +1917,53 @@ function exportSongs() {
   showToast(`↓ ${userSongs.length} canción${userSongs.length !== 1 ? 'es' : ''} exportada${userSongs.length !== 1 ? 's' : ''}`, 'success');
 }
 
+/**
+ * Normaliza una canción importada para garantizar que la letra y las
+ * notas se conserven aunque el archivo venga de una versión distinta
+ * del programa. Acepta varias formas de estructura de "sections".
+ */
+function normalizeImportedSong(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const title = String(raw.title || '').trim() || 'Sin título';
+
+  // Aceptar tanto `sections` como posibles alias antiguos.
+  let sections = raw.sections || raw.secciones || [];
+  if (!Array.isArray(sections)) sections = [];
+
+  // Normalizar cada sección: { label, lines: [ [ {note,text,dur} ] ] }
+  const cleanSections = sections.map(sec => {
+    const label = String((sec && (sec.label || sec.nombre)) || 'Sección');
+    let lines = (sec && (sec.lines || sec.lineas)) || [];
+    if (!Array.isArray(lines)) lines = [];
+
+    const cleanLines = lines.map(line => {
+      if (!Array.isArray(line)) return [];
+      return line.map(syl => {
+        if (!syl || typeof syl !== 'object') return { note: '—', text: ' ' };
+        return {
+          note: (syl.note ?? syl.nota ?? '—').toString(),
+          text: (syl.text ?? syl.texto ?? syl.silaba ?? ' ').toString(),
+          ...(syl.dur ? { dur: String(syl.dur) } : {}),
+        };
+      });
+    }).filter(l => l.length > 0);
+
+    return { label, lines: cleanLines };
+  }).filter(s => s.lines.length > 0);
+
+  return {
+    id: Date.now() + Math.floor(Math.random() * 100000),
+    title,
+    artist:     String(raw.artist || raw.artista || '—'),
+    bpm:        parseInt(raw.bpm) || 100,
+    key:        String(raw.key || raw.tonalidad || 'Do Mayor'),
+    timeSig:    String(raw.timeSig || raw.compas || '4/4'),
+    difficulty: String(raw.difficulty || raw.dificultad || 'beginner'),
+    sections:   cleanSections,
+  };
+}
+
 function importSongs(e) {
   const file = e.target.files[0];
   if (!file) return;
@@ -1924,31 +1971,42 @@ function importSongs(e) {
   const reader = new FileReader();
   reader.onload = evt => {
     try {
-      const imported = JSON.parse(evt.target.result);
-      if (!Array.isArray(imported)) throw new Error('Formato inválido');
+      let parsed = JSON.parse(evt.target.result);
 
-      let added = 0;
-      imported.forEach(song => {
-        if (!song.title || !song.sections) return;
-        // Evitar duplicados por título+artista
+      // Aceptar tanto un array como un objeto { songs: [...] }
+      if (!Array.isArray(parsed)) {
+        if (parsed && Array.isArray(parsed.songs)) parsed = parsed.songs;
+        else if (parsed && typeof parsed === 'object') parsed = [parsed];
+        else throw new Error('Formato inválido');
+      }
+
+      let added = 0, skipped = 0, noLyrics = 0;
+      parsed.forEach(raw => {
+        const song = normalizeImportedSong(raw);
+        if (!song) { skipped++; return; }
+
+        // Evitar duplicados por título + artista
         const exists = state.songs.some(
           s => s.title === song.title && s.artist === song.artist
         );
-        if (!exists) {
-          song.id = Date.now() + Math.random();
-          state.songs.push(song);
-          added++;
-        }
+        if (exists) { skipped++; return; }
+
+        if (song.sections.length === 0) noLyrics++;
+        state.songs.push(song);
+        added++;
       });
 
       if (added > 0) {
-        saveToStorage();
+        persistSongs();
         applyFiltersAndSort();
-        showToast(`↑ ${added} canción${added !== 1 ? 'es' : ''} importada${added !== 1 ? 's' : ''}`, 'success');
+        let msg = `↑ ${added} canción${added !== 1 ? 'es' : ''} importada${added !== 1 ? 's' : ''}`;
+        if (noLyrics > 0) msg += ` (${noLyrics} sin letra)`;
+        showToast(msg, 'success');
       } else {
-        showToast('Todas las canciones ya estaban en la biblioteca', 'info');
+        showToast('No se importó ninguna canción nueva', 'info');
       }
-    } catch {
+    } catch (err) {
+      console.error('[importSongs]', err);
       showToast('Error: el archivo no es válido', 'error');
     }
     // Limpiar el input para permitir importar el mismo archivo otra vez
