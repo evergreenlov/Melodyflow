@@ -947,6 +947,30 @@ body.focus-mode #btn-focus-mode {
   text-align: center;
 }
 
+/* Botón Guardar tono */
+.save-key-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  margin-left: 4px;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-gold);
+  background: rgba(245,200,66,0.08);
+  border: 1px solid rgba(245,200,66,0.3);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+.save-key-btn:hover {
+  background: rgba(245,200,66,0.16);
+  border-color: var(--color-gold);
+  transform: translateY(-1px);
+}
+.save-key-btn:active { transform: translateY(0) scale(0.97); }
+
 /* Botón Notas */
 .toggle-notes-btn {
   display: flex;

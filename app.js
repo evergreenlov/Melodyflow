@@ -300,6 +300,7 @@ document.addEventListener('DOMContentLoaded', () => {
   generateWaveform();
   initSongEditor();
   initManualTranspose();
+  initSaveKey();
   initDataBar();
   initSync();
   initStaffView();
@@ -2075,6 +2076,88 @@ function syncTransposeSelect(song) {
   sel.value = totalIdx;
   sel.classList.toggle('transposed', state.manualSemitones !== 0);
   btnR.hidden = (state.manualSemitones === 0);
+}
+
+/* ══════════════════════════════════════════════════════════
+   GUARDAR EL TONO ACTUAL COMO COPIA
+   ══════════════════════════════════════════════════════════ */
+
+/** Transpone un acorde guardado (canónico americano) devolviendo otro canónico. */
+function transposeStoredChord(chord, semitones) {
+  const c = parseChord(chord);
+  if (!c) return chord;
+  const rootIdx = (((c.root + semitones) % 12) + 12) % 12;
+  let s = IDX_TO_EN[rootIdx] + c.quality;
+  if (c.bass !== null && c.bass !== undefined) {
+    const bassIdx = (((c.bass + semitones) % 12) + 12) % 12;
+    s += '/' + IDX_TO_EN[bassIdx];
+  }
+  return s;
+}
+
+function initSaveKey() {
+  const btn = document.getElementById('btn-save-key');
+  if (btn) btn.addEventListener('click', saveTransposedCopy);
+}
+
+/**
+ * Crea una copia de la canción activa con la transposición MANUAL ya
+ * aplicada a las notas y acordes, y con el nombre de la tonalidad
+ * actualizado. Se guarda como una canción nueva (se duplica).
+ */
+function saveTransposedCopy() {
+  if (state.activeSongId === null) {
+    showToast('Primero selecciona una canción', 'info');
+    return;
+  }
+  const song = state.songs.find(s => s.id === state.activeSongId);
+  if (!song) return;
+
+  const semis = state.manualSemitones;
+  if (semis === 0) {
+    showToast('Cambia el tono primero con los botones ♭ / ♯', 'info');
+    return;
+  }
+
+  // Copiar secciones transponiendo notas y acordes
+  const newSections = (song.sections || []).map(sec => ({
+    label: sec.label,
+    lines: (sec.lines || []).map(line => line.map(syl => {
+      const out = {
+        note: Transposition.transposeNote(syl.note, semis),
+        text: syl.text,
+      };
+      if (syl.dur) out.dur = syl.dur;
+      if (syl.chord) out.chord = transposeStoredChord(syl.chord, semis);
+      return out;
+    })),
+  }));
+
+  const newKey = Transposition.transposeKeyName(song.key, semis);
+  const newKeyRoot = newKey.split(' ')[0];
+
+  const copy = {
+    id: Date.now(),
+    title: `${song.title} (en ${newKeyRoot})`,
+    artist: song.artist,
+    bpm: song.bpm,
+    key: newKey,
+    timeSig: song.timeSig || '4/4',
+    difficulty: song.difficulty || 'beginner',
+    sections: newSections,
+  };
+
+  state.songs.push(copy);
+  persistSongs();
+
+  // Reiniciar la transposición manual y mostrar la copia (ya en su tono)
+  state.manualSemitones = 0;
+  applyFiltersAndSort();
+  showToast(`♪ Guardada "${copy.title}"`, 'success');
+
+  if (typeof getSyncId === 'function' && getSyncId()) syncPush();
+
+  setTimeout(() => selectSong(copy.id), 150);
 }
 
 /* ══════════════════════════════════════════════════════════
