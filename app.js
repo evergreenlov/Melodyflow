@@ -743,48 +743,78 @@ function capitalizeEsRoot(s) {
   return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
 }
 
+/** Parsea solo la raíz (nota) al inicio de un texto. Devuelve {root, rest} o null. */
+function parseChordRoot(str) {
+  const s = (str || '').trim();
+  // Raíz española primero (Do, Re, Mi, Fa, Sol, La, Si)
+  const esMatch = s.match(/^(do|re|mi|fa|sol|la|si)(#|b)?/i);
+  if (esMatch) {
+    const key = capitalizeEsRoot(esMatch[1]) + (esMatch[2] ? esMatch[2].toLowerCase() : '');
+    if (CHORD_ES_INDEX[key] !== undefined) {
+      return { root: CHORD_ES_INDEX[key], rest: s.slice(esMatch[0].length) };
+    }
+  }
+  // Raíz americana (A–G)
+  const enMatch = s.match(/^([a-g])(#|b)?/i);
+  if (enMatch) {
+    const key = enMatch[1].toUpperCase() + (enMatch[2] ? enMatch[2].toLowerCase() : '');
+    if (CHORD_EN_INDEX[key] !== undefined) {
+      return { root: CHORD_EN_INDEX[key], rest: s.slice(enMatch[0].length) };
+    }
+  }
+  return null;
+}
+
 /**
- * Parsea un token de acorde escrito en español o americano.
- * Devuelve { root: 0-11, quality: '...' } o null si no es un acorde.
- * Ej: 'Lam' → {root:9, quality:'m'}, 'G7' → {root:7, quality:'7'}
+ * Parsea un acorde escrito en español o americano, incluyendo acordes
+ * con bajo (barra), p. ej. 'Do/Si', 'Sol/Si', 'G7/B', 'Rem/Fa'.
+ * Devuelve { root, quality, bass } (bass = índice 0-11 o null) o null.
  */
 function parseChord(tokenRaw) {
   const token = (tokenRaw || '').trim();
   if (!token || token === '—' || token === '-') return null;
 
-  // Intentar raíz española primero (Do, Re, Mi, Fa, Sol, La, Si)
-  const esMatch = token.match(/^(do|re|mi|fa|sol|la|si)(#|b)?/i);
-  if (esMatch) {
-    const key = capitalizeEsRoot(esMatch[1]) + (esMatch[2] ? esMatch[2].toLowerCase() : '');
-    if (CHORD_ES_INDEX[key] !== undefined) {
-      return { root: CHORD_ES_INDEX[key], quality: token.slice(esMatch[0].length) };
-    }
+  // Separar la parte del bajo (después de la barra)
+  let mainPart = token, bassStr = null;
+  const slash = token.indexOf('/');
+  if (slash !== -1) {
+    mainPart = token.slice(0, slash);
+    bassStr  = token.slice(slash + 1);
   }
-  // Raíz americana (A–G)
-  const enMatch = token.match(/^([a-g])(#|b)?/i);
-  if (enMatch) {
-    const key = enMatch[1].toUpperCase() + (enMatch[2] ? enMatch[2].toLowerCase() : '');
-    if (CHORD_EN_INDEX[key] !== undefined) {
-      return { root: CHORD_EN_INDEX[key], quality: token.slice(enMatch[0].length) };
-    }
+
+  const main = parseChordRoot(mainPart);
+  if (!main) return null;
+
+  let bass = null;
+  if (bassStr) {
+    const b = parseChordRoot(bassStr);
+    if (b) bass = b.root;
   }
-  return null;
+
+  return { root: main.root, quality: main.rest, bass };
 }
 
 /** Convierte un token de acorde a su forma canónica americana para guardar. */
 function canonicalChord(tokenRaw) {
   const c = parseChord(tokenRaw);
   if (!c) return null;
-  return IDX_TO_EN[c.root] + c.quality;
+  let s = IDX_TO_EN[c.root] + c.quality;
+  if (c.bass !== null && c.bass !== undefined) s += '/' + IDX_TO_EN[c.bass];
+  return s;
 }
 
-/** Da formato a un acorde guardado (americano) transponiéndolo y en la notación elegida. */
+/** Da formato a un acorde guardado transponiéndolo y en la notación elegida. */
 function formatChord(storedChord, semitones = 0) {
   const c = parseChord(storedChord);
   if (!c) return '';
-  const idx = (((c.root + semitones) % 12) + 12) % 12;
-  const root = chordNotation === 'es' ? IDX_TO_ES[idx] : IDX_TO_EN[idx];
-  return root + c.quality;
+  const map = chordNotation === 'es' ? IDX_TO_ES : IDX_TO_EN;
+  const rootIdx = (((c.root + semitones) % 12) + 12) % 12;
+  let s = map[rootIdx] + c.quality;
+  if (c.bass !== null && c.bass !== undefined) {
+    const bassIdx = (((c.bass + semitones) % 12) + 12) % 12;
+    s += '/' + map[bassIdx];
+  }
+  return s;
 }
 
 function renderLyrics(song) {
