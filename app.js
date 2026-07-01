@@ -1654,10 +1654,12 @@ function navigateTab(dir) {
   if (next) switchModalTab(next);
 }
 
-/* ── Secciones: agregar / quitar ── */
-function addSection(customLabel = null) {
+/* ── Secciones: agregar / insertar / quitar ──
+   afterCard: si se pasa, la sección nueva se inserta justo debajo de esa;
+   si es null, se agrega al final. */
+function addSection(customLabel = null, afterCard = null) {
   editorState.sectionCount++;
-  const id = `sec-${Date.now()}`;
+  const id = `sec-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
   // Solo aceptar etiqueta si es texto (evita recibir un Event por error)
   const labelText = typeof customLabel === 'string' ? customLabel : null;
   const defaultLabel = labelText || (editorState.sectionCount === 1 ? 'Verso 1'
@@ -1672,6 +1674,7 @@ function addSection(customLabel = null) {
       <input class="section-name-input" type="text" value="${defaultLabel}"
              placeholder="Nombre de sección (Verso, Coro…)" maxlength="40"
              aria-label="Nombre de sección" />
+      <button class="btn-insert-section" aria-label="Insertar sección debajo" title="Insertar una sección nueva debajo">＋ Sección</button>
       <button class="btn-remove-section" aria-label="Eliminar sección" title="Eliminar sección">✕</button>
     </div>
     <div class="section-lines" id="lines-${id}"></div>
@@ -1683,14 +1686,24 @@ function addSection(customLabel = null) {
     editorState.sectionCount = Math.max(0, editorState.sectionCount - 1);
   });
 
+  card.querySelector('.btn-insert-section').addEventListener('click', () => {
+    addSection(null, card);
+  });
+
   card.querySelector('.btn-add-line').addEventListener('click', () => addLine(id));
 
-  document.getElementById('sections-editor').appendChild(card);
+  // Insertar en la posición pedida o al final
+  const editor = document.getElementById('sections-editor');
+  if (afterCard && afterCard.parentNode === editor) {
+    afterCard.insertAdjacentElement('afterend', card);
+  } else {
+    editor.appendChild(card);
+  }
 
   // Añadir primera línea automáticamente
   addLine(id);
 
-  // Scroll al final
+  // Scroll a la sección nueva
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 

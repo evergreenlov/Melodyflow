@@ -2626,6 +2626,27 @@ body.focus-mode #btn-focus-mode {
 }
 .btn-remove-section:hover { background: rgba(248,113,113,0.15); color: #f87171; }
 
+.btn-insert-section {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.btn-insert-section:hover {
+  background: rgba(0,212,200,0.12);
+  color: var(--color-accent);
+  border-color: var(--border-accent);
+}
+
 .section-lines {
   padding: var(--space-sm) var(--space-md);
   display: flex;
