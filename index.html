@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MelodyFlow — Práctica Musical Inteligente</title>
-  <link rel="stylesheet" href="style.css?v=20260630j" />
+  <link rel="stylesheet" href="style.css?v=20260701a" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 </head>
@@ -292,6 +292,16 @@
           <button id="btn-toggle-notes" class="toggle-notes-btn" aria-pressed="true"
                   title="Mostrar u ocultar notas musicales">
             <span aria-hidden="true">♩</span> Notas
+          </button>
+
+          <button id="btn-toggle-chords" class="toggle-notes-btn active" aria-pressed="true"
+                  title="Mostrar u ocultar acordes (cifrado)">
+            <span aria-hidden="true">𝄞</span> Acordes
+          </button>
+
+          <button id="btn-chord-notation" class="toggle-notes-btn"
+                  title="Cambiar notación de acordes (español / americano)">
+            <span aria-hidden="true">⇄</span> <span id="chord-notation-label">Do</span>
           </button>
 
           <button id="btn-autoscroll" class="autoscroll-btn" aria-pressed="false"
@@ -645,9 +655,10 @@
 
         <div class="format-guide">
           <strong>Cómo entrar la letra:</strong>
-          Escribe las notas y las sílabas en filas separadas, cada palabra separada por espacio.
-          Las notas y sílabas se emparejan por posición.<br>
-          Usa <code>—</code> en Notas para una sílaba sin melodía (pausa, puntuación, etc.)
+          Escribe los <strong>acordes</strong>, las <strong>notas</strong> y las <strong>sílabas</strong> en filas separadas, cada palabra separada por espacio.
+          Todo se empareja por posición.<br>
+          Usa <code>—</code> para dejar un espacio en blanco (nota sin melodía, o sílaba sin acorde).<br>
+          Los <strong>acordes</strong> son opcionales: escríbelos en español (<code>Do</code>, <code>Sol</code>, <code>Lam</code>, <code>Re7</code>) o americano (<code>C</code>, <code>G</code>, <code>Am</code>, <code>D7</code>).
         </div>
 
         <div id="sections-editor" class="sections-editor">
@@ -694,8 +705,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4/build/cjs/vexflow.js"></script>
-  <script src="transposition.js?v=20260630j"></script>
-  <script src="app.js?v=20260630j"></script>
+  <script src="transposition.js?v=20260701a"></script>
+  <script src="app.js?v=20260701a"></script>
   <script>
     // Pruebas del motor de transposición visibles en DevTools → Consola
     document.addEventListener('DOMContentLoaded', () => Transposition.runTests());

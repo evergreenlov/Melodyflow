@@ -1124,6 +1124,23 @@ body.focus-mode #btn-focus-mode {
   height: 18px;
 }
 
+/* Acordes (cifrado) encima de la nota */
+.syllable-chord {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-accent);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  line-height: 1;
+  filter: drop-shadow(0 0 5px rgba(0,212,200,0.25));
+}
+.syllable-chord-empty { display: block; height: 15px; }
+
+/* Ocultar acordes cuando el usuario lo elige */
+.lyrics-container.hide-chords .syllable-chord { display: none; }
+.lyrics-container.hide-chords .syllable-chord-empty { display: none; }
+
 .syllable-text {
   font-size: 20px;
   font-weight: 400;
@@ -2648,11 +2665,18 @@ body.focus-mode #btn-focus-mode {
   background: var(--bg-input);
 }
 
-.line-field-wrap:first-child .line-field-label {
+/* Etiqueta de Acordes (primera fila) — turquesa */
+.line-field-label-chord {
+  color: var(--color-accent) !important;
+  background: rgba(0,212,200,0.06) !important;
+}
+/* Etiqueta de Notas (segunda fila) — dorado */
+.line-field-wrap:nth-child(2) .line-field-label {
   color: var(--color-gold);
   background: rgba(245,200,66,0.05);
 }
 
+.line-chords-input,
 .line-notes-input,
 .line-syllables-input {
   flex: 1;
@@ -2672,6 +2696,8 @@ body.focus-mode #btn-focus-mode {
   box-shadow: 0 0 0 2px var(--color-accent-glow);
 }
 
+.line-chords-input { color: var(--color-accent); }
+.line-chords-input::placeholder { color: rgba(0,212,200,.28); }
 .line-notes-input { color: var(--color-gold); }
 .line-notes-input::placeholder { color: rgba(245,200,66,.25); }
 .line-syllables-input::placeholder { color: var(--text-muted); }
@@ -2699,6 +2725,16 @@ body.focus-mode #btn-focus-mode {
   gap: 3px;
   padding: 0 2px;
 }
+
+.lp-chord {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-accent);
+  line-height: 1;
+  white-space: nowrap;
+}
+.lp-chord-empty { display: block; height: 10px; }
 
 .lp-note {
   font-family: var(--font-mono);

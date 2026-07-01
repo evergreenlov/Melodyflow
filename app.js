@@ -721,6 +721,72 @@ function selectSong(id) {
 /* ══════════════════════════════════════════════════════════
    RENDERIZADO DE LETRA CON NOTAS
    ══════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════
+   ACORDES (CIFRADO) — piano / guitarra
+   ══════════════════════════════════════════════════════════ */
+
+// Notación de acordes que se muestra: 'es' (Do, Sol, Lam) o 'en' (C, G, Am)
+let chordNotation = localStorage.getItem('melodyflow_chord_notation') || 'es';
+
+const CHORD_ES_INDEX = {
+  'Do':0,'Do#':1,'Reb':1,'Re':2,'Re#':3,'Mib':3,'Mi':4,'Fa':5,
+  'Fa#':6,'Solb':6,'Sol':7,'Sol#':8,'Lab':8,'La':9,'La#':10,'Sib':10,'Si':11
+};
+const CHORD_EN_INDEX = {
+  'C':0,'C#':1,'Db':1,'D':2,'D#':3,'Eb':3,'E':4,'F':5,
+  'F#':6,'Gb':6,'G':7,'G#':8,'Ab':8,'A':9,'A#':10,'Bb':10,'B':11
+};
+const IDX_TO_ES = ['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'];
+const IDX_TO_EN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function capitalizeEsRoot(s) {
+  return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+}
+
+/**
+ * Parsea un token de acorde escrito en español o americano.
+ * Devuelve { root: 0-11, quality: '...' } o null si no es un acorde.
+ * Ej: 'Lam' → {root:9, quality:'m'}, 'G7' → {root:7, quality:'7'}
+ */
+function parseChord(tokenRaw) {
+  const token = (tokenRaw || '').trim();
+  if (!token || token === '—' || token === '-') return null;
+
+  // Intentar raíz española primero (Do, Re, Mi, Fa, Sol, La, Si)
+  const esMatch = token.match(/^(do|re|mi|fa|sol|la|si)(#|b)?/i);
+  if (esMatch) {
+    const key = capitalizeEsRoot(esMatch[1]) + (esMatch[2] ? esMatch[2].toLowerCase() : '');
+    if (CHORD_ES_INDEX[key] !== undefined) {
+      return { root: CHORD_ES_INDEX[key], quality: token.slice(esMatch[0].length) };
+    }
+  }
+  // Raíz americana (A–G)
+  const enMatch = token.match(/^([a-g])(#|b)?/i);
+  if (enMatch) {
+    const key = enMatch[1].toUpperCase() + (enMatch[2] ? enMatch[2].toLowerCase() : '');
+    if (CHORD_EN_INDEX[key] !== undefined) {
+      return { root: CHORD_EN_INDEX[key], quality: token.slice(enMatch[0].length) };
+    }
+  }
+  return null;
+}
+
+/** Convierte un token de acorde a su forma canónica americana para guardar. */
+function canonicalChord(tokenRaw) {
+  const c = parseChord(tokenRaw);
+  if (!c) return null;
+  return IDX_TO_EN[c.root] + c.quality;
+}
+
+/** Da formato a un acorde guardado (americano) transponiéndolo y en la notación elegida. */
+function formatChord(storedChord, semitones = 0) {
+  const c = parseChord(storedChord);
+  if (!c) return '';
+  const idx = (((c.root + semitones) % 12) + 12) % 12;
+  const root = chordNotation === 'es' ? IDX_TO_ES[idx] : IDX_TO_EN[idx];
+  return root + c.quality;
+}
+
 function renderLyrics(song) {
   const container = document.getElementById('lyrics-container');
   container.style.fontSize = `${state.fontSize}px`;
@@ -741,8 +807,12 @@ function renderLyrics(song) {
           <div class="lyric-syllables">
             ${line.map(syl => {
               const hasNote = syl.note && syl.note !== '—';
+              const chordTxt = syl.chord ? formatChord(syl.chord, getTotalSemitones()) : '';
               return `
               <div class="lyric-syllable">
+                ${chordTxt
+                  ? `<span class="syllable-chord">${escapeHtml(chordTxt)}</span>`
+                  : `<span class="syllable-chord-empty" aria-hidden="true"></span>`}
                 ${hasNote
                   ? `<span class="syllable-note${isTransposed ? ' transposed' : ''}">${escapeHtml(syl.note)}</span>`
                   : `<span class="syllable-note-empty" aria-hidden="true"></span>`}
@@ -864,6 +934,38 @@ function initNotesToggle() {
     btn.classList.toggle('active', next);
     document.getElementById('lyrics-container').classList.toggle('hide-notes', !next);
   });
+
+  // Mostrar / ocultar acordes
+  const chordBtn = document.getElementById('btn-toggle-chords');
+  if (chordBtn) {
+    chordBtn.addEventListener('click', () => {
+      const showing = chordBtn.getAttribute('aria-pressed') === 'true';
+      const next = !showing;
+      chordBtn.setAttribute('aria-pressed', next);
+      chordBtn.classList.toggle('active', next);
+      document.getElementById('lyrics-container').classList.toggle('hide-chords', !next);
+    });
+  }
+
+  // Cambiar notación de acordes (español ↔ americano)
+  const notationBtn = document.getElementById('btn-chord-notation');
+  if (notationBtn) {
+    updateChordNotationLabel();
+    notationBtn.addEventListener('click', () => {
+      chordNotation = chordNotation === 'es' ? 'en' : 'es';
+      localStorage.setItem('melodyflow_chord_notation', chordNotation);
+      updateChordNotationLabel();
+      if (state.activeSongId !== null) {
+        const song = state.songs.find(s => s.id === state.activeSongId);
+        if (song) renderLyrics(song);
+      }
+    });
+  }
+}
+
+function updateChordNotationLabel() {
+  const label = document.getElementById('chord-notation-label');
+  if (label) label.textContent = chordNotation === 'es' ? 'Do' : 'C';
 }
 
 function initDisplayControls() {
@@ -1437,9 +1539,13 @@ function fillEditorWithSong(song) {
     document.getElementById(`lines-${secId}`).innerHTML = '';
 
     (sec.lines || []).forEach(line => {
-      const notes = line.map(s => s.note || '—').join(' ');
-      const syls  = line.map(s => s.text || ' ').join(' ');
-      addLineWithValues(secId, notes, syls);
+      const notes  = line.map(s => s.note || '—').join(' ');
+      const syls   = line.map(s => s.text || ' ').join(' ');
+      const hasAnyChord = line.some(s => s.chord);
+      const chords = hasAnyChord
+        ? line.map(s => (s.chord ? formatChord(s.chord, 0) : '—')).join(' ')
+        : '';
+      addLineWithValues(secId, notes, syls, chords);
     });
   });
 
@@ -1557,6 +1663,12 @@ function addLine(sectionId) {
     <div class="line-input-wrap">
       <div class="line-two-rows">
         <div class="line-field-wrap">
+          <span class="line-field-label line-field-label-chord">Acordes</span>
+          <input class="line-chords-input" type="text"
+            placeholder="Do  —  —  Sol  Lam  (opcional)"
+            aria-label="Acordes de la línea ${lineNum}" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="line-field-wrap">
           <span class="line-field-label">Notas</span>
           <input class="line-notes-input" type="text"
             placeholder="Mi  Mi  Fa  Sol  La"
@@ -1574,14 +1686,27 @@ function addLine(sectionId) {
     <button class="btn-remove-line" aria-label="Eliminar línea" title="Eliminar línea">✕</button>
   `;
 
+  const chordsInput    = row.querySelector('.line-chords-input');
   const notesInput    = row.querySelector('.line-notes-input');
   const syllablesInput = row.querySelector('.line-syllables-input');
   const preview       = row.querySelector('.line-preview');
 
   const refresh = () => {
-    renderLinePreview(notesInput.value, syllablesInput.value, preview);
+    renderLinePreview(notesInput.value, syllablesInput.value, chordsInput.value, preview);
     updateSaveButton();
   };
+
+  chordsInput.addEventListener('input', () => {
+    const pos = chordsInput.selectionStart;
+    const corrected = chordsInput.value.replace(/\S+/g, token =>
+      token.charAt(0).toUpperCase() + token.slice(1)
+    );
+    if (corrected !== chordsInput.value) {
+      chordsInput.value = corrected;
+      chordsInput.setSelectionRange(pos, pos);
+    }
+    refresh();
+  });
 
   // Auto-capitalizar notas: primera letra de cada token en mayúscula (do→Do, sol→Sol, fa#→Fa#)
   notesInput.addEventListener('input', () => {
@@ -1618,27 +1743,35 @@ function addLine(sectionId) {
   notesInput.focus();
 }
 
-function addLineWithValues(sectionId, notesText, sylsText) {
+function addLineWithValues(sectionId, notesText, sylsText, chordsText = '') {
   addLine(sectionId);
   const container = document.getElementById(`lines-${sectionId}`);
   const lastRow   = container.lastElementChild;
+  const ci = lastRow.querySelector('.line-chords-input');
   const ni = lastRow.querySelector('.line-notes-input');
   const si = lastRow.querySelector('.line-syllables-input');
   const pv = lastRow.querySelector('.line-preview');
+  if (ci) ci.value = chordsText;
   ni.value = notesText;
   si.value = sylsText;
-  renderLinePreview(notesText, sylsText, pv);
+  renderLinePreview(notesText, sylsText, chordsText, pv);
 }
 
-/* ── Parser: dos strings (notas y sílabas) → array de syllables ── */
-function parseLyricLine(notesText, syllablesText) {
-  const notes = notesText.trim().split(/\s+/).filter(Boolean);
-  const syls  = syllablesText.trim().split(/\s+/).filter(Boolean);
-  const len   = Math.max(notes.length, syls.length);
-  return Array.from({ length: len }, (_, i) => ({
-    note: notes[i] || '—',
-    text: syls[i]  || ' ',
-  }));
+/* ── Parser: notas + sílabas (+ acordes) → array de syllables ── */
+function parseLyricLine(notesText, syllablesText, chordsText = '') {
+  const notes  = notesText.trim().split(/\s+/).filter(Boolean);
+  const syls   = syllablesText.trim().split(/\s+/).filter(Boolean);
+  const chords = chordsText.trim().split(/\s+/).filter(Boolean);
+  const len    = Math.max(notes.length, syls.length, chords.length);
+  return Array.from({ length: len }, (_, i) => {
+    const syl = {
+      note: notes[i] || '—',
+      text: syls[i]  || ' ',
+    };
+    const chord = canonicalChord(chords[i]);
+    if (chord) syl.chord = chord;
+    return syl;
+  });
 }
 
 const VALID_NOTES_SET = new Set([
@@ -1648,14 +1781,21 @@ const VALID_NOTES_SET = new Set([
 ]);
 
 /* ── Vista previa inline debajo de cada línea ── */
-function renderLinePreview(notesText, syllablesText, container) {
-  if (!notesText.trim() && !syllablesText.trim()) { container.innerHTML = ''; return; }
+function renderLinePreview(notesText, syllablesText, chordsText, container) {
+  // Compatibilidad: si se llamó con la firma antigua (3 args), corregir.
+  if (container === undefined) { container = chordsText; chordsText = ''; }
 
-  const syllables = parseLyricLine(notesText, syllablesText);
+  if (!notesText.trim() && !syllablesText.trim() && !chordsText.trim()) {
+    container.innerHTML = ''; return;
+  }
 
-  container.innerHTML = syllables.map(({ note, text: txt }) => {
+  const syllables = parseLyricLine(notesText, syllablesText, chordsText);
+
+  container.innerHTML = syllables.map(({ note, text: txt, chord }) => {
     const invalid = note !== '—' && !VALID_NOTES_SET.has(note);
+    const chordTxt = chord ? formatChord(chord, 0) : '';
     return `<div class="lp-syl${invalid ? ' lp-error' : ''}">
+      ${chordTxt ? `<span class="lp-chord">${escapeHtml(chordTxt)}</span>` : '<span class="lp-chord-empty"></span>'}
       <span class="lp-note">${escapeHtml(note)}</span>
       <span class="lp-text">${escapeHtml(txt)}</span>
     </div>`;
@@ -1690,11 +1830,15 @@ function buildPreview() {
       ${sec.lines.map(line => `
         <div class="lyric-line">
           <div class="lyric-syllables">
-            ${line.map(syl => `
+            ${line.map(syl => {
+              const chordTxt = syl.chord ? formatChord(syl.chord, 0) : '';
+              return `
               <div class="lyric-syllable">
+                ${chordTxt ? `<span class="syllable-chord">${escapeHtml(chordTxt)}</span>` : `<span class="syllable-chord-empty" aria-hidden="true"></span>`}
                 <span class="syllable-note">${escapeHtml(syl.note)}</span>
                 <span class="syllable-text">${escapeHtml(syl.text)}</span>
-              </div>`).join('')}
+              </div>`;
+            }).join('')}
           </div>
         </div>`).join('')}
     </div>`).join('');
@@ -1707,9 +1851,11 @@ function collectSectionsData() {
     const label = card.querySelector('.section-name-input').value.trim() || 'Sección';
     const lines = [];
     card.querySelectorAll('.line-row').forEach(row => {
-      const notes = row.querySelector('.line-notes-input').value.trim();
-      const syls  = row.querySelector('.line-syllables-input').value.trim();
-      if (notes || syls) lines.push(parseLyricLine(notes, syls));
+      const notes  = row.querySelector('.line-notes-input').value.trim();
+      const syls   = row.querySelector('.line-syllables-input').value.trim();
+      const chordEl = row.querySelector('.line-chords-input');
+      const chords = chordEl ? chordEl.value.trim() : '';
+      if (notes || syls || chords) lines.push(parseLyricLine(notes, syls, chords));
     });
     if (lines.length > 0) sections.push({ label, lines });
   });
@@ -1952,11 +2098,14 @@ function normalizeImportedSong(raw) {
       if (!Array.isArray(line)) return [];
       return line.map(syl => {
         if (!syl || typeof syl !== 'object') return { note: '—', text: ' ' };
-        return {
+        const out = {
           note: (syl.note ?? syl.nota ?? '—').toString(),
           text: (syl.text ?? syl.texto ?? syl.silaba ?? ' ').toString(),
           ...(syl.dur ? { dur: String(syl.dur) } : {}),
         };
+        const ch = syl.chord ?? syl.acorde;
+        if (ch) { const c = canonicalChord(String(ch)); if (c) out.chord = c; }
+        return out;
       });
     }).filter(l => l.length > 0);
 
