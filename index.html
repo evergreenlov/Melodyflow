@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>MelodyFlow — Práctica Musical Inteligente</title>
-  <link rel="stylesheet" href="style.css?v=20260630i" />
+  <link rel="stylesheet" href="style.css?v=20260630j" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 </head>
@@ -183,6 +183,28 @@
             <input type="file" id="input-import" accept=".json" style="display:none" />
           </label>
           <span id="storage-indicator" class="storage-indicator" aria-live="polite"></span>
+        </div>
+
+        <!-- ── Sincronización en la nube (código compartido) ── -->
+        <div class="sync-bar">
+          <div class="sync-bar-header">
+            <span class="sync-bar-title"><span aria-hidden="true">☁</span> Sincronizar dispositivos</span>
+            <span id="sync-status" class="sync-status" aria-live="polite"></span>
+          </div>
+          <div class="sync-bar-row">
+            <input type="text" id="sync-code-input" class="sync-code-input"
+                   placeholder="Pega aquí tu código de sincronización"
+                   autocomplete="off" spellcheck="false" aria-label="Código de sincronización" />
+            <button id="btn-sync-connect" class="sync-btn" title="Guardar el código en este dispositivo">Conectar</button>
+          </div>
+          <div class="sync-bar-row">
+            <button id="btn-sync-pull" class="sync-btn sync-btn-wide" title="Traer las canciones más recientes de la nube">
+              <span aria-hidden="true">↧</span> Traer cambios
+            </button>
+            <button id="btn-sync-push" class="sync-btn sync-btn-wide" title="Subir mis canciones a la nube">
+              <span aria-hidden="true">↥</span> Subir mis canciones
+            </button>
+          </div>
         </div>
       </div>
 
@@ -672,8 +694,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4/build/cjs/vexflow.js"></script>
-  <script src="transposition.js?v=20260630i"></script>
-  <script src="app.js?v=20260630i"></script>
+  <script src="transposition.js?v=20260630j"></script>
+  <script src="app.js?v=20260630j"></script>
   <script>
     // Pruebas del motor de transposición visibles en DevTools → Consola
     document.addEventListener('DOMContentLoaded', () => Transposition.runTests());

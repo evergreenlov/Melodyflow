@@ -301,6 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSongEditor();
   initManualTranspose();
   initDataBar();
+  initSync();
   initStaffView();
   // Mostrar indicador si ya hay canciones guardadas
   const saved = loadUserSongs();
@@ -525,6 +526,11 @@ function deleteSong(id) {
   }
   applyFiltersAndSort();
   showToast(`✕ "${song.title}" eliminada`, 'info');
+
+  // Reflejar el borrado en la nube si hay sincronización activa
+  if (typeof getSyncId === 'function' && getSyncId()) {
+    syncPush();
+  }
 }
 
 function toggleSetlist(id) {
@@ -1796,6 +1802,11 @@ function doSaveSong() {
     showToast(isEditing ? `✎ "${title}" actualizada` : `♪ "${title}" guardada`, 'success');
   }
 
+  // Subir a la nube automáticamente si hay sincronización configurada
+  if (typeof getSyncId === 'function' && getSyncId()) {
+    syncPush();
+  }
+
   setTimeout(() => selectSong(savedId), 150);
 }
 
@@ -2013,6 +2024,144 @@ function importSongs(e) {
     e.target.value = '';
   };
   reader.readAsText(file);
+}
+
+/* ══════════════════════════════════════════════════════════
+   SINCRONIZACIÓN EN LA NUBE — Pantry (código compartido)
+   ══════════════════════════════════════════════════════════ */
+
+const SYNC_ID_KEY = 'melodyflow_sync_id_v1';
+const PANTRY_BASE = 'https://getpantry.cloud/apiv1/pantry';
+const SYNC_BASKET = 'melodyflow';
+
+function getSyncId()  { return localStorage.getItem(SYNC_ID_KEY) || ''; }
+function setSyncId(id){ localStorage.setItem(SYNC_ID_KEY, id.trim()); }
+
+function setSyncStatus(text, kind = '') {
+  const el = document.getElementById('sync-status');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'sync-status ' + kind;
+}
+
+function initSync() {
+  const input      = document.getElementById('sync-code-input');
+  const connectBtn = document.getElementById('btn-sync-connect');
+  const pullBtn    = document.getElementById('btn-sync-pull');
+  const pushBtn    = document.getElementById('btn-sync-push');
+  if (!input) return;
+
+  const savedId = getSyncId();
+  if (savedId) {
+    input.value = savedId;
+    setSyncStatus('Conectado ✓', 'ok');
+  } else {
+    setSyncStatus('Sin conectar', '');
+  }
+
+  connectBtn.addEventListener('click', () => {
+    const id = input.value.trim();
+    if (!id) { showToast('Pega tu código de sincronización primero', 'info'); return; }
+    setSyncId(id);
+    setSyncStatus('Conectado ✓', 'ok');
+    showToast('☁ Código guardado en este dispositivo', 'success');
+    // Al conectar, traer lo que haya en la nube
+    syncPull();
+  });
+
+  pullBtn.addEventListener('click', () => syncPull());
+  pushBtn.addEventListener('click', () => syncPush());
+
+  // Al abrir la app, si ya hay código, traer los cambios automáticamente
+  if (savedId) {
+    setTimeout(() => syncPull(true), 600);
+  }
+}
+
+/** Sube todas las canciones propias del usuario a la nube. */
+async function syncPush() {
+  const id = getSyncId();
+  if (!id) { showToast('Conecta un código de sincronización primero', 'info'); return; }
+
+  const userSongs = state.songs.filter(s => !SONGS_DATA.some(d => d.id === s.id));
+  setSyncStatus('Subiendo…', 'busy');
+
+  try {
+    const res = await fetch(`${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ songs: userSongs, updatedAt: Date.now() }),
+    });
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    setSyncStatus('Subido ✓', 'ok');
+    showToast(`☁ ${userSongs.length} canción${userSongs.length !== 1 ? 'es' : ''} subida${userSongs.length !== 1 ? 's' : ''} a la nube`, 'success');
+  } catch (err) {
+    console.error('[syncPush]', err);
+    setSyncStatus('Error al subir', 'error');
+    showToast('No se pudo subir. Revisa el código o tu conexión.', 'error');
+  }
+}
+
+/** Trae las canciones de la nube y las combina con las locales. */
+async function syncPull(silent = false) {
+  const id = getSyncId();
+  if (!id) { if (!silent) showToast('Conecta un código de sincronización primero', 'info'); return; }
+
+  setSyncStatus('Trayendo…', 'busy');
+
+  try {
+    const res = await fetch(`${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`, { method: 'GET' });
+    if (res.status === 400) {
+      // El basket todavía no existe: no hay nada en la nube aún.
+      setSyncStatus('Conectado ✓ (nube vacía)', 'ok');
+      if (!silent) showToast('La nube está vacía. Usa "Subir mis canciones" primero.', 'info');
+      return;
+    }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const data = await res.json();
+    const cloudSongs = Array.isArray(data.songs) ? data.songs : [];
+
+    let added = 0, updated = 0;
+    cloudSongs.forEach(raw => {
+      const song = normalizeImportedSong(raw);
+      if (!song) return;
+      // Conservar el mismo id si venía, para poder actualizar en vez de duplicar
+      if (raw.id !== undefined) song.id = raw.id;
+
+      const existingById = state.songs.find(s => s.id === song.id);
+      const existingByName = state.songs.find(
+        s => s.title === song.title && s.artist === song.artist
+      );
+
+      if (existingById && !SONGS_DATA.some(d => d.id === existingById.id)) {
+        Object.assign(existingById, song);
+        updated++;
+      } else if (existingByName && !SONGS_DATA.some(d => d.id === existingByName.id)) {
+        Object.assign(existingByName, song);
+        updated++;
+      } else if (!existingById && !existingByName) {
+        state.songs.push(song);
+        added++;
+      }
+    });
+
+    persistSongs();
+    applyFiltersAndSort();
+    setSyncStatus('Actualizado ✓', 'ok');
+
+    if (!silent || added > 0 || updated > 0) {
+      if (added > 0 || updated > 0) {
+        showToast(`☁ ${added} nueva${added !== 1 ? 's' : ''}, ${updated} actualizada${updated !== 1 ? 's' : ''}`, 'success');
+      } else if (!silent) {
+        showToast('☁ Todo está al día', 'info');
+      }
+    }
+  } catch (err) {
+    console.error('[syncPull]', err);
+    setSyncStatus('Error al traer', 'error');
+    if (!silent) showToast('No se pudo traer. Revisa el código o tu conexión.', 'error');
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
