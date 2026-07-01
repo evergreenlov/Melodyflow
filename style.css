@@ -2798,7 +2798,16 @@ body.focus-mode #btn-focus-mode {
   display: none;
 }
 
-.btn-remove-line {
+.line-row-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+
+.btn-remove-line,
+.btn-insert-line {
   width: 24px;
   height: 24px;
   border-radius: var(--radius-sm);
@@ -2809,9 +2818,19 @@ body.focus-mode #btn-focus-mode {
   justify-content: center;
   transition: all var(--transition-fast);
   flex-shrink: 0;
-  margin-top: 7px;
+  border: 1px solid transparent;
 }
 .btn-remove-line:hover { background: rgba(248,113,113,0.12); color: #f87171; }
+
+.btn-insert-line {
+  font-size: 14px;
+  font-weight: 700;
+}
+.btn-insert-line:hover {
+  background: rgba(0,212,200,0.12);
+  color: var(--color-accent);
+  border-color: var(--border-accent);
+}
 
 .btn-add-line {
   display: flex;

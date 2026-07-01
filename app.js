@@ -1694,39 +1694,50 @@ function addSection(customLabel = null) {
   card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
-/* ── Líneas: agregar / quitar ── */
-function addLine(sectionId) {
+/* ── Renumerar las líneas de una sección ── */
+function renumberLines(container) {
+  container.querySelectorAll('.line-number').forEach((el, i) => {
+    el.textContent = i + 1;
+  });
+}
+
+/* ── Líneas: agregar / insertar / quitar ──
+   afterRow: si se pasa, la nueva línea se inserta justo debajo de esa fila;
+   si es null, se agrega al final. */
+function addLine(sectionId, afterRow = null) {
   const container = document.getElementById(`lines-${sectionId}`);
-  const lineNum = container.children.length + 1;
 
   const row = document.createElement('div');
   row.className = 'line-row';
   row.innerHTML = `
-    <span class="line-number">${lineNum}</span>
+    <span class="line-number"></span>
     <div class="line-input-wrap">
       <div class="line-two-rows">
         <div class="line-field-wrap">
           <span class="line-field-label line-field-label-chord">Acordes</span>
           <input class="line-chords-input" type="text"
             placeholder="Do  —  —  Sol  Lam  (opcional)"
-            aria-label="Acordes de la línea ${lineNum}" autocomplete="off" spellcheck="false" />
+            aria-label="Acordes de la línea" autocomplete="off" spellcheck="false" />
         </div>
         <div class="line-field-wrap">
           <span class="line-field-label">Notas</span>
           <input class="line-notes-input" type="text"
             placeholder="Mi  Mi  Fa  Sol  La"
-            aria-label="Notas de la línea ${lineNum}" autocomplete="off" spellcheck="false" />
+            aria-label="Notas de la línea" autocomplete="off" spellcheck="false" />
         </div>
         <div class="line-field-wrap">
           <span class="line-field-label">Sílabas</span>
           <input class="line-syllables-input" type="text"
             placeholder="A   le  grí  a   her"
-            aria-label="Sílabas de la línea ${lineNum}" autocomplete="off" />
+            aria-label="Sílabas de la línea" autocomplete="off" />
         </div>
       </div>
       <div class="line-preview" aria-hidden="true"></div>
     </div>
-    <button class="btn-remove-line" aria-label="Eliminar línea" title="Eliminar línea">✕</button>
+    <div class="line-row-actions">
+      <button class="btn-insert-line" aria-label="Insertar línea debajo" title="Insertar una línea nueva debajo">＋</button>
+      <button class="btn-remove-line" aria-label="Eliminar línea" title="Eliminar línea">✕</button>
+    </div>
   `;
 
   const chordsInput    = row.querySelector('.line-chords-input');
@@ -1776,13 +1787,22 @@ function addLine(sectionId) {
 
   row.querySelector('.btn-remove-line').addEventListener('click', () => {
     row.remove();
-    container.querySelectorAll('.line-number').forEach((el, i) => {
-      el.textContent = i + 1;
-    });
+    renumberLines(container);
     updateSaveButton();
   });
 
-  container.appendChild(row);
+  // Insertar una línea nueva justo debajo de esta
+  row.querySelector('.btn-insert-line').addEventListener('click', () => {
+    addLine(sectionId, row);
+  });
+
+  // Insertar en la posición pedida o al final
+  if (afterRow && afterRow.parentNode === container) {
+    afterRow.insertAdjacentElement('afterend', row);
+  } else {
+    container.appendChild(row);
+  }
+  renumberLines(container);
   notesInput.focus();
 }
 
