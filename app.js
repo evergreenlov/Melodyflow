@@ -303,6 +303,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSaveKey();
   initDataBar();
   initSync();
+  initRehearsal();
   initStaffView();
   // Mostrar indicador si ya hay canciones guardadas
   const saved = loadUserSongs();
@@ -553,9 +554,11 @@ function toggleSetlist(id) {
 
 function updateSetlistChip() {
   const chip = document.querySelector('.filter-chip[data-filter="setlist"]');
-  if (!chip) return;
-  const count = state.setlist.size;
-  chip.textContent = count > 0 ? `♦ Ensayo (${count})` : '♦ Ensayo';
+  if (chip) {
+    const count = state.setlist.size;
+    chip.textContent = count > 0 ? `♦ Ensayo (${count})` : '♦ Ensayo';
+  }
+  if (typeof updateRehearsalButton === 'function') updateRehearsalButton();
 }
 
 /* ── Drag-and-drop para reordenar ── */
@@ -941,6 +944,18 @@ function initFocusMode() {
     setScrollSpeed(state.scrollSpeed - 1);
   });
 
+  // Navegación del ensayo (flechas ◀ ▶)
+  const prevBtn = document.getElementById('btn-rehearsal-prev');
+  const nextBtn = document.getElementById('btn-rehearsal-next');
+  if (prevBtn) prevBtn.addEventListener('click', () => rehearsalNav(-1));
+  if (nextBtn) nextBtn.addEventListener('click', () => rehearsalNav(1));
+
+  document.addEventListener('keydown', e => {
+    if (!rehearsal.active) return;
+    if (e.key === 'ArrowRight') { e.preventDefault(); rehearsalNav(1); }
+    if (e.key === 'ArrowLeft')  { e.preventDefault(); rehearsalNav(-1); }
+  });
+
   updateFocusSpeedDisplay();
 }
 
@@ -965,7 +980,80 @@ function toggleFocusMode() {
   btn.classList.toggle('active', isActive);
 
   document.getElementById('focus-controls').hidden = !isActive;
+
+  // Al salir del modo enfoque, terminar el ensayo si estaba activo
+  if (!isActive && rehearsal.active) endRehearsal();
   updateFocusSpeedDisplay();
+}
+
+/* ══════════════════════════════════════════════════════════
+   MODO ENSAYO — recorre las canciones del setlist a pantalla completa
+   ══════════════════════════════════════════════════════════ */
+const rehearsal = { active: false, list: [], index: 0 };
+
+function initRehearsal() {
+  const btn = document.getElementById('btn-start-rehearsal');
+  if (btn) btn.addEventListener('click', startRehearsal);
+  updateRehearsalButton();
+}
+
+/** Muestra/actualiza el botón "Iniciar Ensayo" según cuántas canciones haya en el setlist. */
+function updateRehearsalButton() {
+  const btn = document.getElementById('btn-start-rehearsal');
+  const cnt = document.getElementById('rehearsal-song-count');
+  if (!btn) return;
+  const n = state.setlist.size;
+  if (cnt) cnt.textContent = n;
+  btn.hidden = n === 0;
+}
+
+function startRehearsal() {
+  // Canciones del setlist en el orden actual de la biblioteca
+  const list = state.songs.filter(s => state.setlist.has(s.id)).map(s => s.id);
+  if (list.length === 0) {
+    showToast('Agrega canciones al ensayo con ♦ primero', 'info');
+    return;
+  }
+
+  rehearsal.active = true;
+  rehearsal.list = list;
+  rehearsal.index = 0;
+
+  // Asegurar vista de letra y entrar a modo enfoque
+  const lyricsBtn = document.getElementById('btn-view-lyrics');
+  if (lyricsBtn && !lyricsBtn.classList.contains('active')) lyricsBtn.click();
+
+  if (!document.body.classList.contains('focus-mode')) toggleFocusMode();
+
+  document.getElementById('focus-rehearsal-nav').hidden = false;
+  goToRehearsalSong(0);
+}
+
+function endRehearsal() {
+  rehearsal.active = false;
+  const nav = document.getElementById('focus-rehearsal-nav');
+  if (nav) nav.hidden = true;
+}
+
+function goToRehearsalSong(index) {
+  rehearsal.index = index;
+  const id = rehearsal.list[index];
+  selectSong(id);
+
+  const counter = document.getElementById('rehearsal-counter');
+  if (counter) counter.textContent = `${index + 1} / ${rehearsal.list.length}`;
+
+  document.getElementById('btn-rehearsal-prev').disabled = index === 0;
+  document.getElementById('btn-rehearsal-next').disabled = index === rehearsal.list.length - 1;
+
+  // Reiniciar scroll al inicio de la nueva canción
+  const view = document.querySelector('.content-view.active');
+  if (view) view.scrollTop = 0;
+}
+
+function rehearsalNav(dir) {
+  const next = rehearsal.index + dir;
+  if (next >= 0 && next < rehearsal.list.length) goToRehearsalSong(next);
 }
 
 function initNotesToggle() {

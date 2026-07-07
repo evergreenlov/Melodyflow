@@ -912,6 +912,61 @@ body.focus-mode #btn-focus-mode {
   box-shadow: none;
 }
 
+/* Navegación del ensayo dentro del modo enfoque */
+.focus-rehearsal-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 6px;
+  margin-right: 2px;
+  border-right: 1px solid var(--border-mid);
+}
+.focus-rehearsal-nav[hidden] { display: none; }
+
+.focus-nav-btn {
+  background: var(--bg-input);
+  color: var(--color-accent);
+  border: 1px solid var(--border-mid);
+  box-shadow: none;
+}
+.focus-nav-btn:hover { background: var(--bg-card-hover); box-shadow: none; }
+.focus-nav-btn:disabled { opacity: 0.3; cursor: default; }
+
+.rehearsal-counter {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  min-width: 42px;
+  text-align: center;
+}
+
+/* Botón "Iniciar Ensayo" en la biblioteca */
+.btn-start-rehearsal {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--bg-dark);
+  background: var(--color-gold);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  box-shadow: 0 0 14px rgba(245,200,66,0.3);
+}
+.btn-start-rehearsal:hover {
+  background: var(--color-gold-dim);
+  transform: translateY(-1px);
+  box-shadow: 0 0 20px rgba(245,200,66,0.5);
+}
+.btn-start-rehearsal[hidden] { display: none; }
+
 .focus-speed {
   display: flex;
   align-items: center;
