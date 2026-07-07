@@ -1034,6 +1034,7 @@ function startRehearsal() {
   document.getElementById('focus-rehearsal-nav').hidden = false;
   document.getElementById('rehearsal-arrow-prev').hidden = false;
   document.getElementById('rehearsal-arrow-next').hidden = false;
+  document.getElementById('rehearsal-title-banner').hidden = false;
   goToRehearsalSong(0);
 }
 
@@ -1045,12 +1046,20 @@ function endRehearsal() {
   const an = document.getElementById('rehearsal-arrow-next');
   if (ap) ap.hidden = true;
   if (an) an.hidden = true;
+  const banner = document.getElementById('rehearsal-title-banner');
+  if (banner) banner.hidden = true;
 }
 
 function goToRehearsalSong(index) {
   rehearsal.index = index;
   const id = rehearsal.list[index];
   selectSong(id);
+
+  const song = state.songs.find(s => s.id === id);
+  const titleEl  = document.getElementById('rehearsal-title-text');
+  const artistEl = document.getElementById('rehearsal-title-artist');
+  if (song && titleEl)  titleEl.textContent  = song.title;
+  if (song && artistEl) artistEl.textContent = song.artist;
 
   const counter = document.getElementById('rehearsal-counter');
   if (counter) counter.textContent = `${index + 1} / ${rehearsal.list.length}`;

@@ -912,6 +912,45 @@ body.focus-mode #btn-focus-mode {
   box-shadow: none;
 }
 
+/* Cintillo con el nombre de la canción durante el ensayo */
+.rehearsal-title-banner {
+  position: fixed;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 155;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 8px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-lg);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  max-width: min(90vw, 560px);
+  opacity: 0.9;
+}
+.rehearsal-title-banner[hidden] { display: none; }
+
+.rehearsal-title-text {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rehearsal-title-artist {
+  font-size: 12px;
+  color: var(--color-accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* Flechas grandes de ensayo a los lados de la pantalla */
 .rehearsal-arrow {
   position: fixed;
