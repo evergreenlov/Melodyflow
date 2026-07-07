@@ -912,6 +912,36 @@ body.focus-mode #btn-focus-mode {
   box-shadow: none;
 }
 
+/* Flechas grandes de ensayo a los lados de la pantalla */
+.rehearsal-arrow {
+  position: fixed;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 160;
+  width: 60px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 44px;
+  line-height: 1;
+  color: var(--color-accent);
+  background: var(--bg-card);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-lg);
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
+  box-shadow: var(--shadow-lg);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+.rehearsal-arrow:hover { opacity: 1; background: var(--bg-card-hover); }
+.rehearsal-arrow:active { transform: translateY(-50%) scale(0.92); }
+.rehearsal-arrow[hidden] { display: none; }
+.rehearsal-arrow-left  { left: 12px; }
+.rehearsal-arrow-right { right: 12px; }
+
 /* Navegación del ensayo dentro del modo enfoque */
 .focus-rehearsal-nav {
   display: flex;

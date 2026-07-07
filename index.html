@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="MelodyFlow" />
   <meta name="theme-color" content="#0d1117" />
 
-  <link rel="stylesheet" href="style.css?v=20260701g" />
+  <link rel="stylesheet" href="style.css?v=20260701h" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 </head>
@@ -530,6 +530,14 @@
   </main>
 
   <!-- ══════════════════════════════════════════════
+       FLECHAS GRANDES DE ENSAYO (a los lados)
+  ══════════════════════════════════════════════ -->
+  <button id="rehearsal-arrow-prev" class="rehearsal-arrow rehearsal-arrow-left" hidden
+          title="Canción anterior" aria-label="Canción anterior">‹</button>
+  <button id="rehearsal-arrow-next" class="rehearsal-arrow rehearsal-arrow-right" hidden
+          title="Siguiente canción" aria-label="Siguiente canción">›</button>
+
+  <!-- ══════════════════════════════════════════════
        CONTROLES FLOTANTES — MODO ENFOQUE
   ══════════════════════════════════════════════ -->
   <div id="focus-controls" class="focus-controls" aria-label="Controles de modo enfoque" hidden>
@@ -734,8 +742,8 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4/build/cjs/vexflow.js"></script>
-  <script src="transposition.js?v=20260701g"></script>
-  <script src="app.js?v=20260701g"></script>
+  <script src="transposition.js?v=20260701h"></script>
+  <script src="app.js?v=20260701h"></script>
   <script>
     // Pruebas del motor de transposición visibles en DevTools → Consola
     document.addEventListener('DOMContentLoaded', () => Transposition.runTests());

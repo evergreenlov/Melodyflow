@@ -950,6 +950,12 @@ function initFocusMode() {
   if (prevBtn) prevBtn.addEventListener('click', () => rehearsalNav(-1));
   if (nextBtn) nextBtn.addEventListener('click', () => rehearsalNav(1));
 
+  // Flechas grandes a los lados
+  const arrowPrev = document.getElementById('rehearsal-arrow-prev');
+  const arrowNext = document.getElementById('rehearsal-arrow-next');
+  if (arrowPrev) arrowPrev.addEventListener('click', () => rehearsalNav(-1));
+  if (arrowNext) arrowNext.addEventListener('click', () => rehearsalNav(1));
+
   document.addEventListener('keydown', e => {
     if (!rehearsal.active) return;
     if (e.key === 'ArrowRight') { e.preventDefault(); rehearsalNav(1); }
@@ -1026,6 +1032,8 @@ function startRehearsal() {
   if (!document.body.classList.contains('focus-mode')) toggleFocusMode();
 
   document.getElementById('focus-rehearsal-nav').hidden = false;
+  document.getElementById('rehearsal-arrow-prev').hidden = false;
+  document.getElementById('rehearsal-arrow-next').hidden = false;
   goToRehearsalSong(0);
 }
 
@@ -1033,6 +1041,10 @@ function endRehearsal() {
   rehearsal.active = false;
   const nav = document.getElementById('focus-rehearsal-nav');
   if (nav) nav.hidden = true;
+  const ap = document.getElementById('rehearsal-arrow-prev');
+  const an = document.getElementById('rehearsal-arrow-next');
+  if (ap) ap.hidden = true;
+  if (an) an.hidden = true;
 }
 
 function goToRehearsalSong(index) {
@@ -1043,8 +1055,13 @@ function goToRehearsalSong(index) {
   const counter = document.getElementById('rehearsal-counter');
   if (counter) counter.textContent = `${index + 1} / ${rehearsal.list.length}`;
 
-  document.getElementById('btn-rehearsal-prev').disabled = index === 0;
-  document.getElementById('btn-rehearsal-next').disabled = index === rehearsal.list.length - 1;
+  const atStart = index === 0;
+  const atEnd   = index === rehearsal.list.length - 1;
+  document.getElementById('btn-rehearsal-prev').disabled = atStart;
+  document.getElementById('btn-rehearsal-next').disabled = atEnd;
+  // Ocultar la flecha grande en los extremos
+  document.getElementById('rehearsal-arrow-prev').style.visibility = atStart ? 'hidden' : 'visible';
+  document.getElementById('rehearsal-arrow-next').style.visibility = atEnd ? 'hidden' : 'visible';
 
   // Reiniciar scroll al inicio de la nueva canción
   const view = document.querySelector('.content-view.active');
