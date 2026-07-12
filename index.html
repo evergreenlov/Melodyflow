@@ -13,7 +13,7 @@
   <meta name="apple-mobile-web-app-title" content="MelodyFlow" />
   <meta name="theme-color" content="#0d1117" />
 
-  <link rel="stylesheet" href="style.css?v=20260702e" />
+  <link rel="stylesheet" href="style.css?v=20260702f" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 </head>
@@ -445,6 +445,9 @@
               </div>
               <span id="tuner-level-val" class="tuner-level-big-val">0.0000</span>
             </div>
+            <button id="btn-tuner-enable-audio" class="tuner-enable-audio-btn" hidden>
+              🔊 Toca aquí para activar el audio
+            </button>
             <div class="tuner-note-display">
               <span id="tuner-detected-note" class="tuner-note" aria-live="polite" aria-label="Nota detectada">—</span>
               <span id="tuner-octave" class="tuner-octave" aria-live="polite">—</span>
@@ -506,67 +509,6 @@
           </div>
         </section>
 
-        <!-- ── Pista de Acompañamiento ── -->
-        <section class="tool-card" id="tool-backing-track" aria-label="Pista de acompañamiento">
-          <div class="tool-card-header">
-            <h3 class="tool-title">
-              <span aria-hidden="true">♬</span> Backing Track
-            </h3>
-          </div>
-
-          <div class="backing-track-display" aria-label="Reproductor de pista de acompañamiento">
-            <div class="track-info">
-              <span id="backing-track-name" class="track-name">Sin pista cargada</span>
-              <span class="track-genre-badge" id="backing-genre">—</span>
-            </div>
-
-            <div class="track-waveform" aria-hidden="true">
-              <div class="waveform-bars" id="waveform-bars">
-                <!-- Generado por JS -->
-              </div>
-              <div id="waveform-progress" class="waveform-progress"></div>
-            </div>
-
-            <div class="track-time-row" aria-label="Tiempo de reproducción">
-              <span id="track-current-time" class="track-time" aria-live="polite">0:00</span>
-              <input type="range" id="track-seek" class="range-input track-seek-bar"
-                     min="0" max="100" value="0" aria-label="Posición de reproducción" />
-              <span id="track-total-time" class="track-time">0:00</span>
-            </div>
-
-            <div class="track-controls" role="group" aria-label="Controles de reproducción">
-              <button id="btn-track-prev" class="track-ctrl-btn" aria-label="Pista anterior">⏮</button>
-              <button id="btn-track-play" class="track-ctrl-btn track-play-btn" aria-label="Reproducir pista">▶</button>
-              <button id="btn-track-next" class="track-ctrl-btn" aria-label="Pista siguiente">⏭</button>
-              <button id="btn-track-loop" class="track-ctrl-btn" aria-label="Repetir" aria-pressed="false">⟳</button>
-            </div>
-
-            <div class="volume-control" role="group" aria-label="Control de volumen">
-              <span class="vol-icon" aria-hidden="true">♪</span>
-              <input type="range" id="track-volume" class="range-input"
-                     min="0" max="100" value="80" aria-label="Volumen" />
-              <span id="track-volume-display" class="ctrl-value" aria-live="polite">80%</span>
-            </div>
-
-            <div class="track-list" aria-label="Lista de pistas disponibles">
-              <p class="track-list-label">Pistas disponibles:</p>
-              <ul id="backing-track-list" class="backing-track-list" role="listbox" aria-label="Pistas de acompañamiento">
-                <li class="backing-track-item active" role="option" aria-selected="true" data-track="0">
-                  <span class="bi-name">Slow Ballad — Do Mayor</span>
-                  <span class="bi-bpm">♩ 70</span>
-                </li>
-                <li class="backing-track-item" role="option" aria-selected="false" data-track="1">
-                  <span class="bi-name">Pop Groove — Sol Mayor</span>
-                  <span class="bi-bpm">♩ 100</span>
-                </li>
-                <li class="backing-track-item" role="option" aria-selected="false" data-track="2">
-                  <span class="bi-name">Jazz Waltz — Fa Mayor</span>
-                  <span class="bi-bpm">♩ 85</span>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </section>
 
       </div>
     </aside>
@@ -795,8 +737,8 @@
 
   <script src="https://cdn.jsdelivr.net/npm/vexflow@4/build/cjs/vexflow.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
-  <script src="transposition.js?v=20260702e"></script>
-  <script src="app.js?v=20260702e"></script>
+  <script src="transposition.js?v=20260702f"></script>
+  <script src="app.js?v=20260702f"></script>
   <script>
     // Pruebas del motor de transposición visibles en DevTools → Consola
     document.addEventListener('DOMContentLoaded', () => Transposition.runTests());

@@ -269,13 +269,6 @@ const state = {
     interval: null
   },
   tuner: { active: false },
-  backingTrack: {
-    playing: false,
-    looping: false,
-    currentTrack: 0,
-    progress: 0,
-    progressTimer: null
-  }
 };
 
 /* ══════════════════════════════════════════════════════════
@@ -303,9 +296,8 @@ document.addEventListener('DOMContentLoaded', () => {
   safeInit('autoScroll',   initAutoScroll);
   safeInit('metronome',    initMetronome);
   safeInit('tuner',        initTuner);
+  safeInit('tunerRetry',   initTunerAudioRetry);
   safeInit('youtube',      initYouTube);
-  safeInit('backingTrack', initBackingTrack);
-  safeInit('waveform',     generateWaveform);
   safeInit('songEditor',   initSongEditor);
   safeInit('transpose',    initManualTranspose);
   safeInit('saveKey',      initSaveKey);
@@ -1500,6 +1492,10 @@ async function startTuner() {
     statusEl.textContent = 'Escuchando…';
 
     tunerLoop();
+    // Verificar después de un instante si el contexto realmente quedó
+    // activo. Safari a veces reporta éxito pero deja el audio dormido;
+    // en ese caso el nivel se queda en cero sin ningún error visible.
+    setTimeout(checkTunerAudioAwake, 400);
   } catch (err) {
     console.error('[startTuner]', err);
     statusEl.textContent = 'No se pudo acceder al micrófono';
@@ -1523,6 +1519,40 @@ function stopTuner() {
   document.getElementById('tuner-needle').style.left = '50%';
   updateTunerLevelMeter(0);
   clearNoteHistory();
+  document.getElementById('btn-tuner-enable-audio').hidden = true;
+}
+
+/** Comprueba si el AudioContext realmente quedó activo. Si no,
+ *  muestra un botón para reintentarlo con un gesto de clic nuevo
+ *  (algunas versiones de Safari lo dejan "dormido" en silencio). */
+function checkTunerAudioAwake() {
+  if (!state.tuner.active) return;
+  const ctx = getAudioCtx();
+  const btn = document.getElementById('btn-tuner-enable-audio');
+  if (ctx && ctx.state !== 'running') {
+    btn.hidden = false;
+    document.getElementById('tuner-status').textContent =
+      'El audio está pausado por el navegador — toca el botón de abajo';
+  } else {
+    btn.hidden = true;
+  }
+}
+
+function initTunerAudioRetry() {
+  const btn = document.getElementById('btn-tuner-enable-audio');
+  if (!btn) return;
+  btn.addEventListener('click', async () => {
+    // Este clic ES un gesto de usuario nuevo y genuino: aquí Safari sí
+    // debería permitir reanudar el AudioContext sin problema.
+    const ctx = getAudioCtx();
+    if (ctx) {
+      try { await ctx.resume(); } catch (e) { /* seguimos igual */ }
+    }
+    checkTunerAudioAwake();
+    if (ctx && ctx.state === 'running') {
+      document.getElementById('tuner-status').textContent = 'Escuchando…';
+    }
+  });
 }
 
 /** Lee el buffer de audio del analyser, con respaldo si el navegador
@@ -1731,137 +1761,6 @@ function setYouTubeSpeed(speed) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   BACKING TRACK
-   ══════════════════════════════════════════════════════════ */
-const TRACKS = [
-  { name: 'Slow Ballad', key: 'Do Mayor', bpm: 70, duration: 240 },
-  { name: 'Pop Groove',  key: 'Sol Mayor', bpm: 100, duration: 180 },
-  { name: 'Jazz Waltz',  key: 'Fa Mayor', bpm: 85, duration: 200 }
-];
-
-function initBackingTrack() {
-  document.getElementById('btn-track-play').addEventListener('click', toggleTrack);
-  document.getElementById('btn-track-prev').addEventListener('click', () => changeTrack(-1));
-  document.getElementById('btn-track-next').addEventListener('click', () => changeTrack(1));
-  document.getElementById('btn-track-loop').addEventListener('click', toggleLoop);
-
-  document.getElementById('track-volume').addEventListener('input', function() {
-    document.getElementById('track-volume-display').textContent = `${this.value}%`;
-  });
-
-  document.querySelectorAll('.backing-track-item').forEach(item => {
-    item.addEventListener('click', () => {
-      const trackIdx = parseInt(item.dataset.track);
-      selectTrack(trackIdx);
-    });
-  });
-
-  selectTrack(0);
-}
-
-function toggleTrack() {
-  state.backingTrack.playing ? pauseTrack() : playTrack();
-}
-
-function playTrack() {
-  state.backingTrack.playing = true;
-  const btn = document.getElementById('btn-track-play');
-  btn.textContent = '⏸';
-  btn.classList.add('playing');
-  btn.setAttribute('aria-label', 'Pausar pista');
-
-  const track = TRACKS[state.backingTrack.currentTrack];
-  const duration = track.duration;
-
-  state.backingTrack.progressTimer = setInterval(() => {
-    state.backingTrack.progress = Math.min(100, state.backingTrack.progress + (100 / duration / 10));
-    updateTrackProgress();
-
-    if (state.backingTrack.progress >= 100) {
-      if (state.backingTrack.looping) {
-        state.backingTrack.progress = 0;
-      } else {
-        pauseTrack();
-        state.backingTrack.progress = 0;
-        updateTrackProgress();
-      }
-    }
-  }, 100);
-}
-
-function pauseTrack() {
-  state.backingTrack.playing = false;
-  clearInterval(state.backingTrack.progressTimer);
-  const btn = document.getElementById('btn-track-play');
-  btn.textContent = '▶';
-  btn.classList.remove('playing');
-  btn.setAttribute('aria-label', 'Reproducir pista');
-}
-
-function changeTrack(dir) {
-  const wasPlaying = state.backingTrack.playing;
-  pauseTrack();
-  state.backingTrack.progress = 0;
-  const next = (state.backingTrack.currentTrack + dir + TRACKS.length) % TRACKS.length;
-  selectTrack(next);
-  if (wasPlaying) playTrack();
-}
-
-function selectTrack(idx) {
-  state.backingTrack.currentTrack = idx;
-  const track = TRACKS[idx];
-
-  document.getElementById('backing-track-name').textContent = `${track.name} — ${track.key}`;
-  document.getElementById('backing-genre').textContent = `♩ ${track.bpm} BPM`;
-  document.getElementById('track-total-time').textContent = formatTime(track.duration);
-
-  document.querySelectorAll('.backing-track-item').forEach((item, i) => {
-    item.classList.toggle('active', i === idx);
-    item.setAttribute('aria-selected', i === idx);
-  });
-
-  updateTrackProgress();
-}
-
-function toggleLoop() {
-  state.backingTrack.looping = !state.backingTrack.looping;
-  const btn = document.getElementById('btn-track-loop');
-  btn.setAttribute('aria-pressed', state.backingTrack.looping);
-  btn.style.color = state.backingTrack.looping ? 'var(--color-accent)' : '';
-}
-
-function updateTrackProgress() {
-  const p = state.backingTrack.progress;
-  document.getElementById('waveform-progress').style.width = `${p}%`;
-  document.getElementById('track-seek').value = p;
-
-  const track = TRACKS[state.backingTrack.currentTrack];
-  const current = (p / 100) * track.duration;
-  document.getElementById('track-current-time').textContent = formatTime(current);
-
-  // Colorear barras de la forma de onda
-  const bars = document.querySelectorAll('.waveform-bar');
-  const activeCount = Math.floor((p / 100) * bars.length);
-  bars.forEach((bar, i) => bar.classList.toggle('active', i < activeCount));
-}
-
-/* ══════════════════════════════════════════════════════════
-   FORMA DE ONDA (Generación aleatoria)
-   ══════════════════════════════════════════════════════════ */
-function generateWaveform() {
-  const container = document.getElementById('waveform-bars');
-  const count = 48;
-  container.innerHTML = '';
-  for (let i = 0; i < count; i++) {
-    const bar = document.createElement('div');
-    bar.className = 'waveform-bar';
-    const h = 20 + Math.random() * 60;
-    bar.style.height = `${h}%`;
-    container.appendChild(bar);
-  }
-}
-
-/* ══════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
    ══════════════════════════════════════════════════════════ */
 function showToast(message, type = 'info') {
@@ -1882,12 +1781,6 @@ function showToast(message, type = 'info') {
    ══════════════════════════════════════════════════════════ */
 function diffLabel(d) {
   return { beginner: 'Principiante', intermediate: 'Intermedio', advanced: 'Avanzado' }[d] || d;
-}
-
-function formatTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
 function escapeHtml(str) {
