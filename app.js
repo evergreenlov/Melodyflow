@@ -296,6 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initAutoScroll();
   initMetronome();
   initTuner();
+  initYouTube();
   initBackingTrack();
   generateWaveform();
   initSongEditor();
@@ -1365,8 +1366,77 @@ function updateMetronomePendulumSpeed() {
 }
 
 /* ══════════════════════════════════════════════════════════
-   AFINADOR
+   AFINADOR — Detección de tono REAL (micrófono + autocorrelación)
    ══════════════════════════════════════════════════════════ */
+
+const NOTE_NAMES_ES = ['Do','Do#','Re','Re#','Mi','Fa','Fa#','Sol','Sol#','La','La#','Si'];
+
+/** Convierte una frecuencia (Hz) a { note, octave, cents } respecto al La4=440Hz. */
+function freqToNote(freq) {
+  const A4 = 440;
+  const semitonesFromA4 = 12 * Math.log2(freq / A4);
+  const rounded = Math.round(semitonesFromA4);
+  const cents = Math.round((semitonesFromA4 - rounded) * 100);
+
+  // Índice cromático: La = 9 en nuestra escala (Do=0)
+  const idx = (((9 + rounded) % 12) + 12) % 12;
+  const octave = 4 + Math.floor((9 + rounded) / 12);
+
+  return { note: NOTE_NAMES_ES[idx], octave, cents };
+}
+
+/**
+ * Detección de tono por autocorrelación (algoritmo estándar, usado en
+ * afinadores reales). Devuelve la frecuencia fundamental en Hz, o -1
+ * si no hay una señal suficientemente clara (silencio / ruido).
+ */
+function autoCorrelate(buffer, sampleRate) {
+  const SIZE = buffer.length;
+
+  // Medir el volumen (RMS); si es muy bajo, no hay nada que detectar
+  let rms = 0;
+  for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
+  rms = Math.sqrt(rms / SIZE);
+  if (rms < 0.01) return -1;
+
+  // Recortar silencio en los bordes para mejorar la autocorrelación
+  let r1 = 0, r2 = SIZE - 1;
+  const thres = 0.2;
+  for (let i = 0; i < SIZE / 2; i++) {
+    if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
+  }
+  for (let i = 1; i < SIZE / 2; i++) {
+    if (Math.abs(buffer[SIZE - i]) < thres) { r2 = SIZE - i; break; }
+  }
+  const trimmed = buffer.slice(r1, r2);
+  const n = trimmed.length;
+
+  const c = new Array(n).fill(0);
+  for (let lag = 0; lag < n; lag++) {
+    for (let i = 0; i < n - lag; i++) c[lag] += trimmed[i] * trimmed[i + lag];
+  }
+
+  let d = 0;
+  while (d < n - 1 && c[d] > c[d + 1]) d++;
+
+  let maxVal = -1, maxPos = -1;
+  for (let i = d; i < n; i++) {
+    if (c[i] > maxVal) { maxVal = c[i]; maxPos = i; }
+  }
+  let T0 = maxPos;
+
+  // Interpolación parabólica para más precisión
+  if (T0 > 0 && T0 < n - 1) {
+    const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+    const a = (x1 + x3 - 2 * x2) / 2;
+    const b = (x3 - x1) / 2;
+    if (a) T0 = T0 - b / (2 * a);
+  }
+
+  if (T0 <= 0) return -1;
+  return sampleRate / T0;
+}
+
 function initTuner() {
   const toggleBtn = document.getElementById('btn-tuner-toggle');
   toggleBtn.addEventListener('click', () => {
@@ -1374,18 +1444,47 @@ function initTuner() {
   });
 }
 
-function startTuner() {
-  state.tuner.active = true;
-  document.getElementById('btn-tuner-toggle').setAttribute('aria-pressed', 'true');
-  document.getElementById('tuner-status').textContent = 'Escuchando…';
+async function startTuner() {
+  const statusEl = document.getElementById('tuner-status');
 
-  // Simulación visual del afinador
-  simulateTuner();
+  try {
+    statusEl.textContent = 'Solicitando micrófono…';
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
+    });
+
+    const ctx = getAudioCtx();
+    if (!ctx) throw new Error('Audio no disponible en este navegador');
+
+    const source = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 2048;
+    source.connect(analyser);
+
+    state.tuner.stream = stream;
+    state.tuner.analyser = analyser;
+    state.tuner.buffer = new Float32Array(analyser.fftSize);
+    state.tuner.active = true;
+    state.tuner.lastNoteAt = 0;
+
+    document.getElementById('btn-tuner-toggle').setAttribute('aria-pressed', 'true');
+    statusEl.textContent = 'Escuchando…';
+
+    tunerLoop();
+  } catch (err) {
+    console.error('[startTuner]', err);
+    statusEl.textContent = 'No se pudo acceder al micrófono';
+    showToast('Permite el acceso al micrófono para usar el afinador', 'error');
+  }
 }
 
 function stopTuner() {
   state.tuner.active = false;
-  clearInterval(state.tuner.simInterval);
+  if (state.tuner.rafId) cancelAnimationFrame(state.tuner.rafId);
+  if (state.tuner.stream) state.tuner.stream.getTracks().forEach(t => t.stop());
+  state.tuner.stream = null;
+  state.tuner.analyser = null;
+
   document.getElementById('btn-tuner-toggle').setAttribute('aria-pressed', 'false');
   document.getElementById('tuner-detected-note').textContent = '—';
   document.getElementById('tuner-detected-note').className = 'tuner-note';
@@ -1393,44 +1492,160 @@ function stopTuner() {
   document.getElementById('tuner-frequency').textContent = '— Hz';
   document.getElementById('tuner-status').textContent = 'Activa el afinador para detectar audio';
   document.getElementById('tuner-needle').style.left = '50%';
+  clearNoteHistory();
 }
 
-function simulateTuner() {
-  const notes = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Si'];
-  const octaves = ['3', '4', '5'];
-  const freqs = { 'Do4': 261.6, 'Re4': 293.7, 'Mi4': 329.6, 'Fa4': 349.2, 'Sol4': 392, 'La4': 440, 'Si4': 493.9 };
+function tunerLoop() {
+  if (!state.tuner.active || !state.tuner.analyser) return;
 
-  let step = 0;
-  state.tuner.simInterval = setInterval(() => {
-    if (!state.tuner.active) return;
+  state.tuner.analyser.getFloatTimeDomainData(state.tuner.buffer);
+  const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
-    const note = notes[Math.floor(Math.random() * notes.length)];
-    const octave = octaves[Math.floor(Math.random() * octaves.length)];
-    const centOffset = (Math.random() - 0.5) * 60;
-    const freq = (freqs[`${note}4`] || 440) * Math.pow(2, (centOffset / 100) / 12);
+  if (freq !== -1 && freq > 60 && freq < 1600) {
+    const { note, octave, cents } = freqToNote(freq);
+    renderTunerReading(note, octave, cents, freq);
+  }
 
-    const noteEl = document.getElementById('tuner-detected-note');
-    noteEl.textContent = note;
+  state.tuner.rafId = requestAnimationFrame(tunerLoop);
+}
 
-    let statusClass = 'in-tune', statusText = '✓ Afinado';
-    if (Math.abs(centOffset) > 15) {
-      statusClass = centOffset > 0 ? 'sharp' : 'flat';
-      statusText = centOffset > 0 ? '▲ Demasiado agudo' : '▼ Demasiado grave';
+/** Últimas notas detectadas, para no perder pasajes rápidos al leer. */
+const noteHistory = [];
+
+function clearNoteHistory() {
+  noteHistory.length = 0;
+  const el = document.getElementById('tuner-history');
+  if (el) el.innerHTML = '';
+}
+
+function renderTunerReading(note, octave, cents, freq) {
+  const noteEl = document.getElementById('tuner-detected-note');
+  noteEl.textContent = note;
+
+  let statusClass = 'in-tune', statusText = '✓ Afinado';
+  if (Math.abs(cents) > 12) {
+    statusClass = cents > 0 ? 'sharp' : 'flat';
+    statusText = cents > 0 ? '▲ Demasiado agudo' : '▼ Demasiado grave';
+  }
+  noteEl.className = `tuner-note ${statusClass}`;
+
+  document.getElementById('tuner-octave').textContent = octave;
+  document.getElementById('tuner-frequency').textContent = `${freq.toFixed(1)} Hz`;
+  document.getElementById('tuner-status').textContent = statusText;
+
+  const needlePos = 50 + (cents / 50) * 40;
+  document.getElementById('tuner-needle').style.left = `${Math.max(5, Math.min(95, needlePos))}%`;
+  document.getElementById('tuner-needle').style.background =
+    statusClass === 'in-tune' ? 'var(--color-beginner)' :
+    statusClass === 'sharp'   ? 'var(--color-advanced)'  : 'var(--color-intermediate)';
+
+  // Historial: solo agregar si cambió de nota (evita repetir la misma varias veces)
+  const now = Date.now();
+  const last = noteHistory[noteHistory.length - 1];
+  if ((!last || last.note !== note || last.octave !== octave) && now - (state.tuner.lastNoteAt || 0) > 180) {
+    state.tuner.lastNoteAt = now;
+    noteHistory.push({ note, octave });
+    if (noteHistory.length > 6) noteHistory.shift();
+
+    const histEl = document.getElementById('tuner-history');
+    if (histEl) {
+      histEl.innerHTML = noteHistory.map((n, i) =>
+        `<span class="tuner-hist-note${i === noteHistory.length - 1 ? ' current' : ''}">${n.note}<sub>${n.octave}</sub></span>`
+      ).join('<span class="tuner-hist-sep">→</span>');
+      histEl.scrollLeft = histEl.scrollWidth;
     }
-    noteEl.className = `tuner-note ${statusClass}`;
+  }
+}
 
-    document.getElementById('tuner-octave').textContent = octave;
-    document.getElementById('tuner-frequency').textContent = `${freq.toFixed(1)} Hz`;
-    document.getElementById('tuner-status').textContent = statusText;
+/* ══════════════════════════════════════════════════════════
+   REFERENCIA YOUTUBE — reproductor + control de velocidad
+   ══════════════════════════════════════════════════════════ */
 
-    const needlePos = 50 + (centOffset / 50) * 40;
-    document.getElementById('tuner-needle').style.left = `${Math.max(5, Math.min(95, needlePos))}%`;
-    document.getElementById('tuner-needle').style.background =
-      statusClass === 'in-tune' ? 'var(--color-beginner)' :
-      statusClass === 'sharp'   ? 'var(--color-advanced)'  : 'var(--color-intermediate)';
+let ytPlayer = null;
+let ytApiReady = false;
 
-    step++;
-  }, 1200);
+// La API de YouTube llama a esta función global cuando termina de cargar
+window.onYouTubeIframeAPIReady = function () {
+  ytApiReady = true;
+};
+
+/** Extrae el ID de video de varias formas de URL de YouTube (o un ID pelado). */
+function extractYouTubeId(input) {
+  const s = (input || '').trim();
+  if (!s) return null;
+
+  // Si ya parece un ID (11 caracteres típicos, sin espacios ni símbolos de URL)
+  if (/^[\w-]{11}$/.test(s)) return s;
+
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtube\.com\/embed\/|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{11})/,
+  ];
+  for (const re of patterns) {
+    const m = s.match(re);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function initYouTube() {
+  const input   = document.getElementById('yt-url-input');
+  const loadBtn = document.getElementById('btn-yt-load');
+
+  loadBtn.addEventListener('click', loadYouTubeVideo);
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') loadYouTubeVideo();
+  });
+
+  document.querySelectorAll('.yt-speed-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const speed = parseFloat(btn.dataset.speed);
+      setYouTubeSpeed(speed);
+      document.querySelectorAll('.yt-speed-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+}
+
+function loadYouTubeVideo() {
+  const input = document.getElementById('yt-url-input');
+  const id = extractYouTubeId(input.value);
+
+  if (!id) {
+    showToast('Pega un enlace de YouTube válido', 'info');
+    return;
+  }
+
+  document.getElementById('yt-player-wrap').hidden = false;
+  document.getElementById('yt-speed-row').hidden = false;
+
+  const start = () => {
+    if (ytPlayer) {
+      ytPlayer.loadVideoById(id);
+    } else {
+      ytPlayer = new YT.Player('yt-player', {
+        videoId: id,
+        playerVars: { rel: 0, playsinline: 1 },
+      });
+    }
+  };
+
+  if (ytApiReady && window.YT && window.YT.Player) {
+    start();
+  } else {
+    // La API de YouTube aún no cargó: reintentar en breve
+    const wait = setInterval(() => {
+      if (ytApiReady && window.YT && window.YT.Player) {
+        clearInterval(wait);
+        start();
+      }
+    }, 200);
+  }
+}
+
+function setYouTubeSpeed(speed) {
+  if (ytPlayer && typeof ytPlayer.setPlaybackRate === 'function') {
+    ytPlayer.setPlaybackRate(speed);
+  }
 }
 
 /* ══════════════════════════════════════════════════════════
