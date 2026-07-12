@@ -1822,6 +1822,45 @@ body.focus-mode #btn-focus-mode {
   font-weight: 500;
 }
 
+/* Medidor de nivel GRANDE — imposible de no ver, para diagnóstico */
+.tuner-level-big {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-input);
+  border: 2px solid var(--border-mid);
+  border-radius: var(--radius-md);
+}
+.tuner-level-big-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  color: var(--text-secondary);
+}
+.tuner-level-big-track {
+  width: 100%;
+  height: 22px;
+  background: var(--bg-dark);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  border: 1px solid var(--border-subtle);
+}
+.tuner-level-big-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--color-accent), var(--color-gold));
+  transition: width 0.05s linear;
+}
+.tuner-level-big-val {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--color-accent);
+}
+
 /* Medidor de nivel de entrada (diagnóstico del micrófono) */
 .tuner-level-row {
   display: flex;
