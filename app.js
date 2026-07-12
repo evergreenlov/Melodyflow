@@ -281,34 +281,45 @@ const state = {
 /* ══════════════════════════════════════════════════════════
    INIT
    ══════════════════════════════════════════════════════════ */
+/** Ejecuta una función de inicialización sin que un error en ella
+ *  impida que las demás funciones de la app arranquen normalmente. */
+function safeInit(name, fn) {
+  try { fn(); }
+  catch (err) { console.error(`[init:${name}]`, err); }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
-  applySavedOrder();
-  initFocusMode();
-  initTheme();
-  initMobileTabs();
-  initSearch();
-  initFilters();
-  initInstruments();
-  renderSongList();
-  initViewToggle();
-  initNotesToggle();
-  initDisplayControls();
-  initAutoScroll();
-  initMetronome();
-  initTuner();
-  initYouTube();
-  initBackingTrack();
-  generateWaveform();
-  initSongEditor();
-  initManualTranspose();
-  initSaveKey();
-  initDataBar();
-  initSync();
-  initRehearsal();
-  initStaffView();
+  safeInit('order',        applySavedOrder);
+  safeInit('focusMode',    initFocusMode);
+  safeInit('theme',        initTheme);
+  safeInit('mobileTabs',   initMobileTabs);
+  safeInit('search',       initSearch);
+  safeInit('filters',      initFilters);
+  safeInit('instruments',  initInstruments);
+  safeInit('songList',     renderSongList);
+  safeInit('viewToggle',   initViewToggle);
+  safeInit('notesToggle',  initNotesToggle);
+  safeInit('displayCtrl',  initDisplayControls);
+  safeInit('autoScroll',   initAutoScroll);
+  safeInit('metronome',    initMetronome);
+  safeInit('tuner',        initTuner);
+  safeInit('youtube',      initYouTube);
+  safeInit('backingTrack', initBackingTrack);
+  safeInit('waveform',     generateWaveform);
+  safeInit('songEditor',   initSongEditor);
+  safeInit('transpose',    initManualTranspose);
+  safeInit('saveKey',      initSaveKey);
+  safeInit('dataBar',      initDataBar);
+  safeInit('sync',         initSync);
+  safeInit('rehearsal',    initRehearsal);
+  safeInit('staffView',    initStaffView);
+
   // Mostrar indicador si ya hay canciones guardadas
-  const saved = loadUserSongs();
-  if (saved.length) updateStorageIndicator(saved.length);
+  safeInit('storageIndicator', () => {
+    const saved = loadUserSongs();
+    if (saved.length) updateStorageIndicator(saved.length);
+  });
+
   showToast('¡Bienvenido a MelodyFlow!', 'info');
 });
 
@@ -1514,32 +1525,56 @@ function stopTuner() {
   clearNoteHistory();
 }
 
+/** Lee el buffer de audio del analyser, con respaldo si el navegador
+ *  no soporta getFloatTimeDomainData (Safari muy antiguo). */
+function readTunerBuffer(analyser, floatBuf) {
+  if (typeof analyser.getFloatTimeDomainData === 'function') {
+    analyser.getFloatTimeDomainData(floatBuf);
+    return floatBuf;
+  }
+  // Respaldo: leer bytes (0-255) y normalizar a -1..1
+  const byteBuf = new Uint8Array(floatBuf.length);
+  analyser.getByteTimeDomainData(byteBuf);
+  for (let i = 0; i < byteBuf.length; i++) floatBuf[i] = (byteBuf[i] - 128) / 128;
+  return floatBuf;
+}
+
 function tunerLoop() {
   if (!state.tuner.active || !state.tuner.analyser) return;
 
-  state.tuner.analyser.getFloatTimeDomainData(state.tuner.buffer);
+  try {
+    readTunerBuffer(state.tuner.analyser, state.tuner.buffer);
 
-  // Medidor de nivel en vivo — sirve para diagnosticar si el
-  // micrófono realmente está entregando señal, sin adivinar.
-  let rms = 0;
-  const buf = state.tuner.buffer;
-  for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
-  rms = Math.sqrt(rms / buf.length);
-  updateTunerLevelMeter(rms);
+    // Medidor de nivel en vivo — sirve para diagnosticar si el
+    // micrófono realmente está entregando señal, sin adivinar.
+    let rms = 0;
+    const buf = state.tuner.buffer;
+    for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+    rms = Math.sqrt(rms / buf.length);
+    updateTunerLevelMeter(rms);
 
-  const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
+    const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
-  if (freq !== -1 && freq > 60 && freq < 1600) {
-    state.tuner.silentFrames = 0;
-    const { note, octave, cents } = freqToNote(freq);
-    renderTunerReading(note, octave, cents, freq);
-  } else {
-    // Sin nota detectable: avisar tras un rato de silencio para que
-    // el usuario sepa que el afinador está vivo, solo no oye nada.
-    state.tuner.silentFrames = (state.tuner.silentFrames || 0) + 1;
-    if (state.tuner.silentFrames === 90) {
-      document.getElementById('tuner-status').textContent = 'Escuchando… (sin sonido detectado)';
+    if (freq !== -1 && freq > 60 && freq < 1600) {
+      state.tuner.silentFrames = 0;
+      const { note, octave, cents } = freqToNote(freq);
+      renderTunerReading(note, octave, cents, freq);
+    } else {
+      // Sin nota detectable: avisar tras un rato de silencio para que
+      // el usuario sepa que el afinador está vivo, solo no oye nada.
+      state.tuner.silentFrames = (state.tuner.silentFrames || 0) + 1;
+      if (state.tuner.silentFrames === 90) {
+        document.getElementById('tuner-status').textContent = 'Escuchando… (sin sonido detectado)';
+      }
     }
+  } catch (err) {
+    // Mostrar el error en pantalla en vez de que el afinador se quede
+    // congelado sin explicación.
+    console.error('[tunerLoop]', err);
+    document.getElementById('tuner-status').textContent =
+      'Error del afinador: ' + (err && err.message ? err.message : err);
+    stopTuner();
+    return;
   }
 
   state.tuner.rafId = requestAnimationFrame(tunerLoop);
