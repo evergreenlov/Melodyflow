@@ -1510,6 +1510,7 @@ function stopTuner() {
   document.getElementById('tuner-frequency').textContent = '— Hz';
   document.getElementById('tuner-status').textContent = 'Activa el afinador para detectar audio';
   document.getElementById('tuner-needle').style.left = '50%';
+  updateTunerLevelMeter(0);
   clearNoteHistory();
 }
 
@@ -1517,6 +1518,15 @@ function tunerLoop() {
   if (!state.tuner.active || !state.tuner.analyser) return;
 
   state.tuner.analyser.getFloatTimeDomainData(state.tuner.buffer);
+
+  // Medidor de nivel en vivo — sirve para diagnosticar si el
+  // micrófono realmente está entregando señal, sin adivinar.
+  let rms = 0;
+  const buf = state.tuner.buffer;
+  for (let i = 0; i < buf.length; i++) rms += buf[i] * buf[i];
+  rms = Math.sqrt(rms / buf.length);
+  updateTunerLevelMeter(rms);
+
   const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
   if (freq !== -1 && freq > 60 && freq < 1600) {
@@ -1533,6 +1543,17 @@ function tunerLoop() {
   }
 
   state.tuner.rafId = requestAnimationFrame(tunerLoop);
+}
+
+function updateTunerLevelMeter(rms) {
+  const fill = document.getElementById('tuner-level-fill');
+  const val  = document.getElementById('tuner-level-val');
+  if (!fill || !val) return;
+  // Escala visual: 0.05 de RMS ya se ve como barra llena (voz/instrumento normal)
+  const pct = Math.min(100, (rms / 0.05) * 100);
+  fill.style.width = `${pct}%`;
+  fill.classList.toggle('low', rms < 0.003);
+  val.textContent = rms.toFixed(4);
 }
 
 /** Últimas notas detectadas, para no perder pasajes rápidos al leer. */
