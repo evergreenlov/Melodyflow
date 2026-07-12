@@ -1393,11 +1393,13 @@ function freqToNote(freq) {
 function autoCorrelate(buffer, sampleRate) {
   const SIZE = buffer.length;
 
-  // Medir el volumen (RMS); si es muy bajo, no hay nada que detectar
+  // Medir el volumen (RMS); si es muy bajo, no hay nada que detectar.
+  // Umbral bajo a propósito: micrófonos integrados de laptop/tablet
+  // suelen dar niveles muy discretos incluso con sonido ambiente claro.
   let rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.01) return -1;
+  if (rms < 0.003) return -1;
 
   // Recortar silencio en los bordes para mejorar la autocorrelación
   let r1 = 0, r2 = SIZE - 1;
@@ -1447,18 +1449,33 @@ function initTuner() {
 async function startTuner() {
   const statusEl = document.getElementById('tuner-status');
 
+  // IMPORTANTE: crear/reanudar el AudioContext de forma SÍNCRONA, dentro
+  // del mismo gesto de clic del usuario. Si se crea después de un await
+  // (p. ej. tras esperar el permiso del micrófono), Safari lo deja
+  // "suspendido" y nunca procesa audio, aunque el micrófono sí funcione.
+  const ctx = getAudioCtx();
+  if (!ctx) {
+    statusEl.textContent = 'Audio no disponible en este navegador';
+    return;
+  }
+  if (ctx.state === 'suspended') {
+    try { await ctx.resume(); } catch (e) { /* seguimos e intentamos igual */ }
+  }
+
   try {
     statusEl.textContent = 'Solicitando micrófono…';
     const stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }
     });
 
-    const ctx = getAudioCtx();
-    if (!ctx) throw new Error('Audio no disponible en este navegador');
+    // Asegurar de nuevo que el contexto esté activo (por si Safari lo
+    // suspendió mientras esperábamos el permiso)
+    if (ctx.state === 'suspended') await ctx.resume();
 
     const source = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
+    analyser.smoothingTimeConstant = 0;
     source.connect(analyser);
 
     state.tuner.stream = stream;
@@ -1466,6 +1483,7 @@ async function startTuner() {
     state.tuner.buffer = new Float32Array(analyser.fftSize);
     state.tuner.active = true;
     state.tuner.lastNoteAt = 0;
+    state.tuner.silentFrames = 0;
 
     document.getElementById('btn-tuner-toggle').setAttribute('aria-pressed', 'true');
     statusEl.textContent = 'Escuchando…';
@@ -1502,8 +1520,16 @@ function tunerLoop() {
   const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
   if (freq !== -1 && freq > 60 && freq < 1600) {
+    state.tuner.silentFrames = 0;
     const { note, octave, cents } = freqToNote(freq);
     renderTunerReading(note, octave, cents, freq);
+  } else {
+    // Sin nota detectable: avisar tras un rato de silencio para que
+    // el usuario sepa que el afinador está vivo, solo no oye nada.
+    state.tuner.silentFrames = (state.tuner.silentFrames || 0) + 1;
+    if (state.tuner.silentFrames === 90) {
+      document.getElementById('tuner-status').textContent = 'Escuchando… (sin sonido detectado)';
+    }
   }
 
   state.tuner.rafId = requestAnimationFrame(tunerLoop);
