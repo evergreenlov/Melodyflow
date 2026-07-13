@@ -470,6 +470,27 @@
               <span id="tuner-frequency" class="tuner-freq" aria-live="polite" aria-label="Frecuencia">— Hz</span>
             </div>
             <div id="tuner-history" class="tuner-history" aria-label="Últimas notas detectadas" aria-live="polite"></div>
+            <div class="tuner-capture" aria-label="Registro de melodía">
+              <div class="tuner-capture-actions">
+                <button id="btn-tuner-capture" class="tuner-capture-btn" aria-pressed="false">
+                  Registrar melodía
+                </button>
+                <button id="btn-tuner-clear-capture" class="tuner-capture-secondary" disabled>
+                  Limpiar
+                </button>
+              </div>
+              <div id="tuner-capture-notes" class="tuner-capture-notes" aria-live="polite">
+                Sin notas registradas
+              </div>
+              <div class="tuner-capture-actions">
+                <button id="btn-tuner-save-capture" class="tuner-capture-secondary" disabled>
+                  Crear canción
+                </button>
+                <button id="btn-tuner-copy-capture" class="tuner-capture-secondary" disabled>
+                  Copiar notas
+                </button>
+              </div>
+            </div>
           </div>
         </section>
 
@@ -505,6 +526,7 @@
 
             <p class="yt-hint">
               Reproduce la canción y activa el <strong>Afinador</strong> arriba para ver la nota que suena en tus bocinas. Baja la velocidad si va muy rápido para leer.
+              Por seguridad, el navegador no permite leer el audio interno de YouTube; el registro usa lo que entra por el micrófono.
             </p>
           </div>
         </section>

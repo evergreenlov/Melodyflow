@@ -1945,6 +1945,88 @@ body.focus-mode #btn-focus-mode {
   opacity: 0.5;
 }
 
+/* Registro de melodía desde el afinador */
+.tuner-capture {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--radius-md);
+}
+
+.tuner-capture-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.tuner-capture-btn,
+.tuner-capture-secondary {
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-mid);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tuner-capture-btn {
+  flex: 1;
+  color: var(--bg-dark);
+  background: var(--color-accent);
+  border-color: transparent;
+}
+
+.tuner-capture-btn[aria-pressed="true"] {
+  color: var(--text-primary);
+  background: rgba(248,113,113,0.18);
+  border-color: rgba(248,113,113,0.55);
+}
+
+.tuner-capture-secondary {
+  flex: 1;
+  color: var(--text-secondary);
+  background: var(--bg-dark);
+}
+
+.tuner-capture-secondary:not(:disabled):hover,
+.tuner-capture-btn:hover {
+  border-color: var(--border-accent);
+}
+
+.tuner-capture-secondary:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.tuner-capture-notes {
+  min-height: 34px;
+  max-height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-dark);
+  color: var(--text-muted);
+  font-size: 11px;
+  overflow: auto;
+}
+
+.tuner-capture-note {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-radius: var(--radius-sm);
+  background: rgba(0,212,200,0.12);
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* ── Referencia YouTube ── */
 .yt-display {
   padding: var(--space-md);

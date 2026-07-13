@@ -1459,6 +1459,17 @@ function initTuner() {
   toggleBtn.addEventListener('click', () => {
     state.tuner.active ? stopTuner() : startTuner();
   });
+
+  const captureBtn = document.getElementById('btn-tuner-capture');
+  const clearBtn = document.getElementById('btn-tuner-clear-capture');
+  const saveBtn = document.getElementById('btn-tuner-save-capture');
+  const copyBtn = document.getElementById('btn-tuner-copy-capture');
+
+  if (captureBtn) captureBtn.addEventListener('click', toggleTunerCapture);
+  if (clearBtn) clearBtn.addEventListener('click', clearTunerCapture);
+  if (saveBtn) saveBtn.addEventListener('click', saveTunerCaptureAsSong);
+  if (copyBtn) copyBtn.addEventListener('click', copyTunerCaptureNotes);
+  renderTunerCapture();
 }
 
 async function startTuner() {
@@ -1524,15 +1535,18 @@ async function startTuner() {
     // activo. Safari a veces reporta éxito pero deja el audio dormido;
     // en ese caso el nivel se queda en cero sin ningún error visible.
     setTimeout(checkTunerAudioAwake, 400);
+    return true;
   } catch (err) {
     console.error('[startTuner]', err);
     statusEl.textContent = 'No se pudo acceder al micrófono';
     showToast('Permite el acceso al micrófono para usar el afinador', 'error');
+    return false;
   }
 }
 
 function stopTuner() {
   state.tuner.active = false;
+  state.tuner.recording = false;
   if (state.tuner.rafId) cancelAnimationFrame(state.tuner.rafId);
   if (state.tuner.stream) state.tuner.stream.getTracks().forEach(t => t.stop());
   state.tuner.stream = null;
@@ -1549,6 +1563,7 @@ function stopTuner() {
   clearNoteHistory();
   state.tuner.rawHistory = [];
   document.getElementById('btn-tuner-enable-audio').hidden = true;
+  renderTunerCapture();
 }
 
 /** Comprueba si el AudioContext realmente quedó activo. Si no,
@@ -1732,6 +1747,7 @@ function renderTunerReading(note, octave, cents, freq) {
     state.tuner.lastNoteAt = now;
     noteHistory.push({ note, octave });
     if (noteHistory.length > 6) noteHistory.shift();
+    captureTunerNote(note, octave);
 
     const histEl = document.getElementById('tuner-history');
     if (histEl) {
@@ -1741,6 +1757,137 @@ function renderTunerReading(note, octave, cents, freq) {
       histEl.scrollLeft = histEl.scrollWidth;
     }
   }
+}
+
+async function toggleTunerCapture() {
+  if (state.tuner.recording) {
+    state.tuner.recording = false;
+    renderTunerCapture();
+    return;
+  }
+
+  if (!state.tuner.active) {
+    const started = await startTuner();
+    if (!started) return;
+  }
+
+  state.tuner.recording = true;
+  renderTunerCapture();
+  showToast('Registro de melodía activo', 'info');
+}
+
+function captureTunerNote(note, octave) {
+  if (!state.tuner.recording) return;
+  if (!state.tuner.capturedMelody) state.tuner.capturedMelody = [];
+
+  const now = Date.now();
+  const key = `${note}${octave}`;
+  const last = state.tuner.capturedMelody[state.tuner.capturedMelody.length - 1];
+
+  if (last && last.key === key && now - last.at < 900) return;
+  if (state.tuner.capturedMelody.length >= 96) {
+    state.tuner.recording = false;
+    showToast('Registro lleno: se guardaron 96 notas', 'info');
+    renderTunerCapture();
+    return;
+  }
+
+  state.tuner.capturedMelody.push({ note, octave, key, at: now });
+  renderTunerCapture();
+}
+
+function clearTunerCapture() {
+  state.tuner.capturedMelody = [];
+  renderTunerCapture();
+}
+
+function renderTunerCapture() {
+  const captureBtn = document.getElementById('btn-tuner-capture');
+  const clearBtn = document.getElementById('btn-tuner-clear-capture');
+  const saveBtn = document.getElementById('btn-tuner-save-capture');
+  const copyBtn = document.getElementById('btn-tuner-copy-capture');
+  const notesEl = document.getElementById('tuner-capture-notes');
+  if (!captureBtn || !notesEl) return;
+
+  const notes = state.tuner.capturedMelody || [];
+  captureBtn.setAttribute('aria-pressed', state.tuner.recording ? 'true' : 'false');
+  captureBtn.textContent = state.tuner.recording ? 'Detener registro' : 'Registrar melodía';
+
+  const hasNotes = notes.length > 0;
+  if (clearBtn) clearBtn.disabled = !hasNotes;
+  if (saveBtn) saveBtn.disabled = !hasNotes;
+  if (copyBtn) copyBtn.disabled = !hasNotes;
+
+  notesEl.innerHTML = hasNotes
+    ? notes.map(n => `<span class="tuner-capture-note">${n.note}<sub>${n.octave}</sub></span>`).join('')
+    : 'Sin notas registradas';
+  notesEl.scrollLeft = notesEl.scrollWidth;
+}
+
+function getTunerCapturePlainNotes() {
+  return (state.tuner.capturedMelody || []).map(n => n.note);
+}
+
+async function copyTunerCaptureNotes() {
+  const notes = getTunerCapturePlainNotes();
+  if (!notes.length) return;
+
+  const text = notes.join(' ');
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast('Notas copiadas', 'success');
+  } catch (err) {
+    console.warn('[copyTunerCaptureNotes]', err);
+    showToast(text, 'info');
+  }
+}
+
+function saveTunerCaptureAsSong() {
+  const notes = getTunerCapturePlainNotes();
+  if (!notes.length) return;
+
+  const videoTitle = ytPlayer && typeof ytPlayer.getVideoData === 'function'
+    ? ytPlayer.getVideoData()?.title
+    : '';
+  const titleBase = videoTitle ? `Melodía: ${videoTitle}` : 'Melodía registrada';
+  const lines = [];
+
+  for (let i = 0; i < notes.length; i += 16) {
+    lines.push(notes.slice(i, i + 16).map(note => ({
+      note,
+      text: 'la',
+      dur: 'q'
+    })));
+  }
+
+  const song = {
+    id: Date.now(),
+    title: titleBase,
+    artist: 'Referencia YouTube',
+    bpm: state.metronome?.bpm || 100,
+    key: 'Do Mayor',
+    timeSig: '4/4',
+    difficulty: 'beginner',
+    sections: [{ label: 'Melodía registrada', lines }]
+  };
+
+  state.songs.push(song);
+  persistSongs();
+  state.searchQuery = '';
+  const searchInput = document.getElementById('song-search-input');
+  if (searchInput) searchInput.value = '';
+  const clearBtn = document.getElementById('btn-clear-search');
+  if (clearBtn) clearBtn.hidden = true;
+  state.currentFilter = 'alpha';
+  document.querySelectorAll('.filter-chip').forEach(chip => {
+    const isAlpha = chip.dataset.filter === 'alpha';
+    chip.classList.toggle('active', isAlpha);
+    chip.setAttribute('aria-pressed', isAlpha);
+  });
+  state.filteredSongs = [...state.songs].sort((a, b) => a.title.localeCompare(b.title));
+  renderSongList();
+  setTimeout(() => selectSong(song.id), 100);
+  showToast('Melodía registrada como canción nueva', 'success');
 }
 
 /* ══════════════════════════════════════════════════════════
