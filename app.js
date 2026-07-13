@@ -1614,21 +1614,25 @@ function tunerLoop() {
 
     const { freq, clarity } = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
-    // Umbral de claridad: pruebas con señales sintéticas mostraron que
-    // incluso un acorde simple de 3 notas cae a ~0.80 de claridad, y
-    // ruido de batería a ~0.81 — un umbral de 0.85 rechazaba casi toda
-    // la música real. 0.4 deja pasar mezclas completas, aceptando que
-    // a veces se equivoque de nota u octava en pasajes muy densos.
-    if (freq !== -1 && freq > 60 && freq < 1600 && clarity > 0.4) {
+    // Mostrar la claridad en vivo junto a los Hz para poder diagnosticar
+    // con datos reales qué valores produce la música del usuario.
+    state.tuner.lastClarity = clarity;
+
+    // Umbral mínimo: solo descartar cuadros realmente sin tono.
+    // La estabilización posterior (mayoría de lecturas) se encarga de
+    // filtrar los errores; aquí dejamos pasar casi todo.
+    if (freq !== -1 && freq > 60 && freq < 1600 && clarity > 0.15) {
       state.tuner.silentFrames = 0;
       const { note, octave, cents } = freqToNote(freq);
       stabilizeAndRenderNote(note, octave, cents, freq);
     } else {
-      // Sin nota clara: avisar tras un rato para que el usuario sepa
-      // que el afinador está vivo, solo no encuentra un tono limpio.
+      // Sin nota clara: mostrar los datos crudos (frecuencia y claridad)
+      // para poder diagnosticar por qué se está descartando la lectura.
       state.tuner.silentFrames = (state.tuner.silentFrames || 0) + 1;
-      if (state.tuner.silentFrames === 90) {
-        document.getElementById('tuner-status').textContent = 'Escuchando… (sin tono claro por ahora)';
+      if (state.tuner.silentFrames % 30 === 0) {
+        const fTxt = freq > 0 ? `${freq.toFixed(0)} Hz` : 'sin freq';
+        document.getElementById('tuner-status').textContent =
+          `Buscando tono… (${fTxt}, claridad ${clarity.toFixed(2)})`;
       }
     }
   } catch (err) {
@@ -1675,7 +1679,7 @@ function stabilizeAndRenderNote(note, octave, cents, freq) {
   if (!state.tuner.rawHistory) state.tuner.rawHistory = [];
   const hist = state.tuner.rawHistory;
   hist.push({ note, octave, cents, freq });
-  if (hist.length > 5) hist.shift();
+  if (hist.length > 4) hist.shift();
 
   const counts = {};
   hist.forEach(h => {
@@ -1687,8 +1691,10 @@ function stabilizeAndRenderNote(note, octave, cents, freq) {
     if (counts[k] > bestCount) { bestCount = counts[k]; bestKey = k; }
   }
 
-  // Solo mostrar si al menos 3 de las últimas 5 lecturas coinciden
-  if (bestCount >= 3) {
+  // Mostrar cuando al menos 2 de las últimas 4 lecturas coinciden —
+  // suficiente para descartar cuadros sueltos de ruido sin volverse
+  // tan estricto que con música real nunca se muestre nada.
+  if (bestCount >= 2) {
     const matching = hist.filter(h => (h.note + h.octave) === bestKey);
     const latest = matching[matching.length - 1];
     renderTunerReading(latest.note, latest.octave, latest.cents, latest.freq);
@@ -1707,7 +1713,10 @@ function renderTunerReading(note, octave, cents, freq) {
   noteEl.className = `tuner-note ${statusClass}`;
 
   document.getElementById('tuner-octave').textContent = octave;
-  document.getElementById('tuner-frequency').textContent = `${freq.toFixed(1)} Hz`;
+  const clarityTxt = state.tuner.lastClarity !== undefined
+    ? ` · claridad ${state.tuner.lastClarity.toFixed(2)}`
+    : '';
+  document.getElementById('tuner-frequency').textContent = `${freq.toFixed(1)} Hz${clarityTxt}`;
   document.getElementById('tuner-status').textContent = statusText;
 
   const needlePos = 50 + (cents / 50) * 40;
