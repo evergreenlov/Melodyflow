@@ -1614,10 +1614,12 @@ function tunerLoop() {
 
     const { freq, clarity } = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
-    // Umbral de claridad: con música completa (batería + varios
-    // instrumentos) casi nunca hay un tono 100% limpio, así que se
-    // acepta desde 0.85 en vez de exigir una señal perfecta.
-    if (freq !== -1 && freq > 60 && freq < 1600 && clarity > 0.85) {
+    // Umbral de claridad: pruebas con señales sintéticas mostraron que
+    // incluso un acorde simple de 3 notas cae a ~0.80 de claridad, y
+    // ruido de batería a ~0.81 — un umbral de 0.85 rechazaba casi toda
+    // la música real. 0.4 deja pasar mezclas completas, aceptando que
+    // a veces se equivoque de nota u octava en pasajes muy densos.
+    if (freq !== -1 && freq > 60 && freq < 1600 && clarity > 0.4) {
       state.tuner.silentFrames = 0;
       const { note, octave, cents } = freqToNote(freq);
       stabilizeAndRenderNote(note, octave, cents, freq);
