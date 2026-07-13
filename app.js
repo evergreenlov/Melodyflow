@@ -1393,6 +1393,13 @@ function freqToNote(freq) {
  * afinadores reales). Devuelve la frecuencia fundamental en Hz, o -1
  * si no hay una señal suficientemente clara (silencio / ruido).
  */
+/**
+ * Detección de tono por autocorrelación, devolviendo también una medida
+ * de "claridad" (0-1): qué tan periódica/limpia es la señal. Con música
+ * completa (batería + varios instrumentos) hay muchos momentos donde no
+ * hay un tono dominante claro; la claridad permite descartar esos
+ * momentos en vez de mostrar una nota inventada.
+ */
 function autoCorrelate(buffer, sampleRate) {
   const SIZE = buffer.length;
 
@@ -1402,7 +1409,7 @@ function autoCorrelate(buffer, sampleRate) {
   let rms = 0;
   for (let i = 0; i < SIZE; i++) rms += buffer[i] * buffer[i];
   rms = Math.sqrt(rms / SIZE);
-  if (rms < 0.003) return -1;
+  if (rms < 0.003) return { freq: -1, clarity: 0 };
 
   // Recortar silencio en los bordes para mejorar la autocorrelación
   let r1 = 0, r2 = SIZE - 1;
@@ -1430,6 +1437,11 @@ function autoCorrelate(buffer, sampleRate) {
   }
   let T0 = maxPos;
 
+  // "Claridad": qué tan alto es el pico de periodicidad comparado con
+  // la energía total de la señal (c[0]). Cerca de 1 = tono muy limpio
+  // (una sola nota); cerca de 0 = ruido / mezcla sin tono dominante.
+  const clarity = c[0] > 0 ? maxVal / c[0] : 0;
+
   // Interpolación parabólica para más precisión
   if (T0 > 0 && T0 < n - 1) {
     const x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
@@ -1438,8 +1450,8 @@ function autoCorrelate(buffer, sampleRate) {
     if (a) T0 = T0 - b / (2 * a);
   }
 
-  if (T0 <= 0) return -1;
-  return sampleRate / T0;
+  if (T0 <= 0) return { freq: -1, clarity: 0 };
+  return { freq: sampleRate / T0, clarity };
 }
 
 function initTuner() {
@@ -1476,10 +1488,26 @@ async function startTuner() {
     if (ctx.state === 'suspended') await ctx.resume();
 
     const source = ctx.createMediaStreamSource(stream);
+
+    // Filtro pasa-banda: recorta graves de batería/bajo (< 70 Hz) y
+    // agudos de platillos/armónicos altos (> 1400 Hz) ANTES de analizar,
+    // para que la autocorrelación se confunda menos con música completa
+    // (batería + varios instrumentos) en vez de una sola voz/instrumento.
+    const highpass = ctx.createBiquadFilter();
+    highpass.type = 'highpass';
+    highpass.frequency.value = 70;
+
+    const lowpass = ctx.createBiquadFilter();
+    lowpass.type = 'lowpass';
+    lowpass.frequency.value = 1400;
+
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 2048;
     analyser.smoothingTimeConstant = 0;
-    source.connect(analyser);
+
+    source.connect(highpass);
+    highpass.connect(lowpass);
+    lowpass.connect(analyser);
 
     state.tuner.stream = stream;
     state.tuner.analyser = analyser;
@@ -1519,6 +1547,7 @@ function stopTuner() {
   document.getElementById('tuner-needle').style.left = '50%';
   updateTunerLevelMeter(0);
   clearNoteHistory();
+  state.tuner.rawHistory = [];
   document.getElementById('btn-tuner-enable-audio').hidden = true;
 }
 
@@ -1583,18 +1612,21 @@ function tunerLoop() {
     rms = Math.sqrt(rms / buf.length);
     updateTunerLevelMeter(rms);
 
-    const freq = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
+    const { freq, clarity } = autoCorrelate(state.tuner.buffer, getAudioCtx().sampleRate);
 
-    if (freq !== -1 && freq > 60 && freq < 1600) {
+    // Umbral de claridad: con música completa (batería + varios
+    // instrumentos) casi nunca hay un tono 100% limpio, así que se
+    // acepta desde 0.85 en vez de exigir una señal perfecta.
+    if (freq !== -1 && freq > 60 && freq < 1600 && clarity > 0.85) {
       state.tuner.silentFrames = 0;
       const { note, octave, cents } = freqToNote(freq);
-      renderTunerReading(note, octave, cents, freq);
+      stabilizeAndRenderNote(note, octave, cents, freq);
     } else {
-      // Sin nota detectable: avisar tras un rato de silencio para que
-      // el usuario sepa que el afinador está vivo, solo no oye nada.
+      // Sin nota clara: avisar tras un rato para que el usuario sepa
+      // que el afinador está vivo, solo no encuentra un tono limpio.
       state.tuner.silentFrames = (state.tuner.silentFrames || 0) + 1;
       if (state.tuner.silentFrames === 90) {
-        document.getElementById('tuner-status').textContent = 'Escuchando… (sin sonido detectado)';
+        document.getElementById('tuner-status').textContent = 'Escuchando… (sin tono claro por ahora)';
       }
     }
   } catch (err) {
@@ -1628,6 +1660,37 @@ function clearNoteHistory() {
   noteHistory.length = 0;
   const el = document.getElementById('tuner-history');
   if (el) el.innerHTML = '';
+}
+
+/**
+ * Estabiliza la nota antes de mostrarla: exige que la misma nota se
+ * repita en la mayoría de las últimas lecturas antes de actualizar la
+ * pantalla. Con música completa hay lecturas erráticas de vez en
+ * cuando (un golpe de batería, un acorde); esto evita que "parpadeen"
+ * notas equivocadas y solo muestra lo que realmente se sostiene.
+ */
+function stabilizeAndRenderNote(note, octave, cents, freq) {
+  if (!state.tuner.rawHistory) state.tuner.rawHistory = [];
+  const hist = state.tuner.rawHistory;
+  hist.push({ note, octave, cents, freq });
+  if (hist.length > 5) hist.shift();
+
+  const counts = {};
+  hist.forEach(h => {
+    const key = h.note + h.octave;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+  let bestKey = null, bestCount = 0;
+  for (const k in counts) {
+    if (counts[k] > bestCount) { bestCount = counts[k]; bestKey = k; }
+  }
+
+  // Solo mostrar si al menos 3 de las últimas 5 lecturas coinciden
+  if (bestCount >= 3) {
+    const matching = hist.filter(h => (h.note + h.octave) === bestKey);
+    const latest = matching[matching.length - 1];
+    renderTunerReading(latest.note, latest.octave, latest.cents, latest.freq);
+  }
 }
 
 function renderTunerReading(note, octave, cents, freq) {
