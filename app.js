@@ -2859,15 +2859,27 @@ function importSongs(e) {
 }
 
 /* ══════════════════════════════════════════════════════════
-   SINCRONIZACIÓN EN LA NUBE — Pantry (código compartido)
+   SINCRONIZACIÓN EN LA NUBE — Firebase Realtime Database (REST)
    ══════════════════════════════════════════════════════════ */
 
-const SYNC_ID_KEY = 'melodyflow_sync_id_v1';
-const PANTRY_BASE = 'https://getpantry.cloud/apiv1/pantry';
-const SYNC_BASKET = 'melodyflow';
+const SYNC_ID_KEY = 'melodyflow_sync_url_v2';   // URL de la base Firebase (el viejo código de Pantry ya no se usa)
+const SYNC_NODE   = 'melodyflow';
 
 function getSyncId()  { return localStorage.getItem(SYNC_ID_KEY) || ''; }
-function setSyncId(id){ localStorage.setItem(SYNC_ID_KEY, id.trim()); }
+function setSyncId(url){ localStorage.setItem(SYNC_ID_KEY, url); }
+function syncUrl()    { return `${getSyncId()}/${SYNC_NODE}.json`; }
+
+/** Acepta lo que el usuario pegue (con o sin https, con "/" o ".json" al final)
+ *  y devuelve la URL base de Firebase Realtime Database, o null si no es válida. */
+function normalizeDbUrl(input) {
+  let v = (input || '').trim();
+  if (!v) return null;
+  if (!/^https?:\/\//i.test(v)) v = 'https://' + v;
+  let u;
+  try { u = new URL(v); } catch (e) { return null; }
+  if (!/(\.firebaseio\.com|\.firebasedatabase\.app)$/i.test(u.hostname)) return null;
+  return 'https://' + u.hostname;
+}
 
 function setSyncStatus(text, kind = '') {
   const el = document.getElementById('sync-status');
@@ -2883,6 +2895,9 @@ function initSync() {
   const pushBtn    = document.getElementById('btn-sync-push');
   if (!input) return;
 
+  // El código viejo de Pantry ya no sirve: limpiarlo
+  try { localStorage.removeItem('melodyflow_sync_id_v1'); } catch (e) {}
+
   const savedId = getSyncId();
   if (savedId) {
     input.value = savedId;
@@ -2892,11 +2907,15 @@ function initSync() {
   }
 
   connectBtn.addEventListener('click', () => {
-    const id = input.value.trim();
-    if (!id) { showToast('Pega tu código de sincronización primero', 'info'); return; }
-    setSyncId(id);
+    const url = normalizeDbUrl(input.value);
+    if (!url) {
+      showToast('Pega la dirección de tu base Firebase (termina en firebaseio.com o firebasedatabase.app)', 'error');
+      return;
+    }
+    input.value = url;
+    setSyncId(url);
     setSyncStatus('Conectado ✓', 'ok');
-    showToast('☁ Código guardado en este dispositivo', 'success');
+    showToast('☁ Dirección guardada en este dispositivo', 'success');
     // Al conectar, traer lo que haya en la nube
     syncPull();
   });
@@ -2910,15 +2929,16 @@ function initSync() {
   }
 }
 
-/** Lee la respuesta de error de Pantry y devuelve un tipo + mensaje claro. */
-async function readPantryError(res) {
-  let details = '';
-  try { details = (await res.json()).details || ''; } catch (e) { /* sin cuerpo */ }
-  if (/pantry with id/i.test(details) && /not found/i.test(details)) {
-    return { kind: 'badCode',
-      message: 'Ese código ya no existe (Pantry borra los vacíos o sin uso). Crea uno nuevo en getpantry.cloud y pégalo aquí.' };
+/** Traduce una respuesta de error de Firebase a un mensaje claro. */
+async function readCloudError(res) {
+  if (res.status === 401 || res.status === 403) {
+    return { kind: 'rules',
+      message: 'Firebase rechazó el acceso. En Reglas de la base de datos pon ".read": true y ".write": true y publica.' };
   }
-  if (res.status === 400) return { kind: 'noBasket', message: 'La nube aún está vacía.' };
+  if (res.status === 404) {
+    return { kind: 'badUrl',
+      message: 'No se encontró esa base de datos. Revisa que la dirección esté completa y copiada de Firebase.' };
+  }
   return { kind: 'http', message: `Error del servidor (HTTP ${res.status}).` };
 }
 
@@ -2958,29 +2978,28 @@ async function syncPush({ skipPull = false } = {}) {
   if (!id) { showToast('Conecta un código de sincronización primero', 'info'); return; }
 
   setSyncStatus('Subiendo…', 'busy');
-  const url = `${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`;
+  const url = syncUrl();
 
   try {
     if (!skipPull) {
       const getRes = await fetch(url, { method: 'GET' });
       if (getRes.ok) {
         const data = await getRes.json();
-        mergeCloudSongs(Array.isArray(data.songs) ? data.songs : [], { updateExisting: false });
+        mergeCloudSongs(data && Array.isArray(data.songs) ? data.songs : [], { updateExisting: false });
         persistSongs();
         applyFiltersAndSort();
       } else {
-        const err = await readPantryError(getRes);
-        if (err.kind !== 'noBasket') throw new Error(err.message);
+        throw new Error((await readCloudError(getRes)).message);
       }
     }
 
     const userSongs = state.songs.filter(s => !SONGS_DATA.some(d => d.id === s.id));
     const res = await fetch(url, {
-      method: 'POST',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ songs: userSongs, updatedAt: Date.now() }),
     });
-    if (!res.ok) throw new Error((await readPantryError(res)).message);
+    if (!res.ok) throw new Error((await readCloudError(res)).message);
 
     setSyncStatus('Subido ✓', 'ok');
     showToast(`☁ ${userSongs.length} canción${userSongs.length !== 1 ? 'es' : ''} en la nube`, 'success');
@@ -3000,19 +3019,16 @@ async function syncPull(silent = false) {
   setSyncStatus('Trayendo…', 'busy');
 
   try {
-    const res = await fetch(`${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`, { method: 'GET' });
-    if (!res.ok) {
-      const err = await readPantryError(res);
-      if (err.kind === 'noBasket') {
-        setSyncStatus('Conectado ✓ (nube vacía)', 'ok');
-        if (!silent) showToast('La nube está vacía. Usa "Subir mis canciones" primero.', 'info');
-        return;
-      }
-      throw new Error(err.message);
-    }
+    const res = await fetch(syncUrl(), { method: 'GET' });
+    if (!res.ok) throw new Error((await readCloudError(res)).message);
 
     const data = await res.json();
-    const { added, updated } = mergeCloudSongs(Array.isArray(data.songs) ? data.songs : []);
+    if (!data || !Array.isArray(data.songs)) {
+      setSyncStatus('Conectado ✓ (nube vacía)', 'ok');
+      if (!silent) showToast('La nube está vacía. Usa "Subir mis canciones" primero.', 'info');
+      return;
+    }
+    const { added, updated } = mergeCloudSongs(data.songs);
 
     persistSongs();
     applyFiltersAndSort();
