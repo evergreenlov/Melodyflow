@@ -535,7 +535,7 @@ function deleteSong(id) {
 
   // Reflejar el borrado en la nube si hay sincronización activa
   if (typeof getSyncId === 'function' && getSyncId()) {
-    syncPush();
+    syncPush({ skipPull: true });
   }
 }
 
@@ -2910,27 +2910,85 @@ function initSync() {
   }
 }
 
-/** Sube todas las canciones propias del usuario a la nube. */
-async function syncPush() {
+/** Lee la respuesta de error de Pantry y devuelve un tipo + mensaje claro. */
+async function readPantryError(res) {
+  let details = '';
+  try { details = (await res.json()).details || ''; } catch (e) { /* sin cuerpo */ }
+  if (/pantry with id/i.test(details) && /not found/i.test(details)) {
+    return { kind: 'badCode',
+      message: 'Ese código ya no existe (Pantry borra los vacíos o sin uso). Crea uno nuevo en getpantry.cloud y pégalo aquí.' };
+  }
+  if (res.status === 400) return { kind: 'noBasket', message: 'La nube aún está vacía.' };
+  return { kind: 'http', message: `Error del servidor (HTTP ${res.status}).` };
+}
+
+/** Combina canciones de la nube con las locales. Devuelve {added, updated}. */
+function mergeCloudSongs(cloudSongs, { updateExisting = true } = {}) {
+  let added = 0, updated = 0;
+  cloudSongs.forEach(raw => {
+    const song = normalizeImportedSong(raw);
+    if (!song) return;
+    if (raw.id !== undefined) song.id = raw.id;
+
+    const existingById = state.songs.find(s => s.id === song.id);
+    const existingByName = state.songs.find(
+      s => s.title === song.title && s.artist === song.artist
+    );
+
+    if (existingById || existingByName) {
+      const target = existingById || existingByName;
+      if (updateExisting && !SONGS_DATA.some(d => d.id === target.id)) {
+        Object.assign(target, song);
+        updated++;
+      }
+    } else {
+      state.songs.push(song);
+      added++;
+    }
+  });
+  return { added, updated };
+}
+
+/** Sube las canciones propias a la nube. Por defecto primero trae lo que
+ *  ya hay en la nube y lo combina, para que subir desde la tableta no
+ *  borre las canciones que subió la computadora (y al revés).
+ *  skipPull: true al borrar una canción, para que no reaparezca. */
+async function syncPush({ skipPull = false } = {}) {
   const id = getSyncId();
   if (!id) { showToast('Conecta un código de sincronización primero', 'info'); return; }
 
-  const userSongs = state.songs.filter(s => !SONGS_DATA.some(d => d.id === s.id));
   setSyncStatus('Subiendo…', 'busy');
+  const url = `${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`;
 
   try {
-    const res = await fetch(`${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`, {
+    if (!skipPull) {
+      const getRes = await fetch(url, { method: 'GET' });
+      if (getRes.ok) {
+        const data = await getRes.json();
+        mergeCloudSongs(Array.isArray(data.songs) ? data.songs : [], { updateExisting: false });
+        persistSongs();
+        applyFiltersAndSort();
+      } else {
+        const err = await readPantryError(getRes);
+        if (err.kind !== 'noBasket') throw new Error(err.message);
+      }
+    }
+
+    const userSongs = state.songs.filter(s => !SONGS_DATA.some(d => d.id === s.id));
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ songs: userSongs, updatedAt: Date.now() }),
     });
-    if (!res.ok) throw new Error('HTTP ' + res.status);
+    if (!res.ok) throw new Error((await readPantryError(res)).message);
+
     setSyncStatus('Subido ✓', 'ok');
-    showToast(`☁ ${userSongs.length} canción${userSongs.length !== 1 ? 'es' : ''} subida${userSongs.length !== 1 ? 's' : ''} a la nube`, 'success');
+    showToast(`☁ ${userSongs.length} canción${userSongs.length !== 1 ? 'es' : ''} en la nube`, 'success');
   } catch (err) {
     console.error('[syncPush]', err);
     setSyncStatus('Error al subir', 'error');
-    showToast('No se pudo subir. Revisa el código o tu conexión.', 'error');
+    const offline = err instanceof TypeError;
+    showToast(offline ? 'Sin conexión a internet o bloqueado por el navegador.' : err.message, 'error');
   }
 }
 
@@ -2943,56 +3001,35 @@ async function syncPull(silent = false) {
 
   try {
     const res = await fetch(`${PANTRY_BASE}/${id}/basket/${SYNC_BASKET}`, { method: 'GET' });
-    if (res.status === 400) {
-      // El basket todavía no existe: no hay nada en la nube aún.
-      setSyncStatus('Conectado ✓ (nube vacía)', 'ok');
-      if (!silent) showToast('La nube está vacía. Usa "Subir mis canciones" primero.', 'info');
-      return;
+    if (!res.ok) {
+      const err = await readPantryError(res);
+      if (err.kind === 'noBasket') {
+        setSyncStatus('Conectado ✓ (nube vacía)', 'ok');
+        if (!silent) showToast('La nube está vacía. Usa "Subir mis canciones" primero.', 'info');
+        return;
+      }
+      throw new Error(err.message);
     }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
 
     const data = await res.json();
-    const cloudSongs = Array.isArray(data.songs) ? data.songs : [];
-
-    let added = 0, updated = 0;
-    cloudSongs.forEach(raw => {
-      const song = normalizeImportedSong(raw);
-      if (!song) return;
-      // Conservar el mismo id si venía, para poder actualizar en vez de duplicar
-      if (raw.id !== undefined) song.id = raw.id;
-
-      const existingById = state.songs.find(s => s.id === song.id);
-      const existingByName = state.songs.find(
-        s => s.title === song.title && s.artist === song.artist
-      );
-
-      if (existingById && !SONGS_DATA.some(d => d.id === existingById.id)) {
-        Object.assign(existingById, song);
-        updated++;
-      } else if (existingByName && !SONGS_DATA.some(d => d.id === existingByName.id)) {
-        Object.assign(existingByName, song);
-        updated++;
-      } else if (!existingById && !existingByName) {
-        state.songs.push(song);
-        added++;
-      }
-    });
+    const { added, updated } = mergeCloudSongs(Array.isArray(data.songs) ? data.songs : []);
 
     persistSongs();
     applyFiltersAndSort();
     setSyncStatus('Actualizado ✓', 'ok');
 
-    if (!silent || added > 0 || updated > 0) {
-      if (added > 0 || updated > 0) {
-        showToast(`☁ ${added} nueva${added !== 1 ? 's' : ''}, ${updated} actualizada${updated !== 1 ? 's' : ''}`, 'success');
-      } else if (!silent) {
-        showToast('☁ Todo está al día', 'info');
-      }
+    if (added > 0 || updated > 0) {
+      showToast(`☁ ${added} nueva${added !== 1 ? 's' : ''}, ${updated} actualizada${updated !== 1 ? 's' : ''}`, 'success');
+    } else if (!silent) {
+      showToast('☁ Todo está al día', 'info');
     }
   } catch (err) {
     console.error('[syncPull]', err);
     setSyncStatus('Error al traer', 'error');
-    if (!silent) showToast('No se pudo traer. Revisa el código o tu conexión.', 'error');
+    if (!silent) {
+      const offline = err instanceof TypeError;
+      showToast(offline ? 'Sin conexión a internet o bloqueado por el navegador.' : err.message, 'error');
+    }
   }
 }
 
