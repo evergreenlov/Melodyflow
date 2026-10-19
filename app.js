@@ -1984,7 +1984,7 @@ function setYouTubeSpeed(speed) {
 /* ══════════════════════════════════════════════════════════
    TOAST NOTIFICATIONS
    ══════════════════════════════════════════════════════════ */
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', ms = 2800) {
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;
@@ -1994,7 +1994,7 @@ function showToast(message, type = 'info') {
   setTimeout(() => {
     toast.style.animation = 'toastOut 0.25s ease forwards';
     setTimeout(() => toast.remove(), 250);
-  }, 2800);
+  }, ms);
 }
 
 /* ══════════════════════════════════════════════════════════
@@ -2942,6 +2942,18 @@ async function readCloudError(res) {
   return { kind: 'http', message: `Error del servidor (HTTP ${res.status}).` };
 }
 
+/** Texto claro para un error de sincronización: distingue red bloqueada de un fallo interno. */
+function describeSyncError(err) {
+  const raw = (err && err.message) ? err.message : String(err);
+  if (err instanceof TypeError && /load failed|failed to fetch|networkerror|network request/i.test(raw)) {
+    return 'El navegador no pudo comunicarse con Firebase (internet, bloqueador de contenido o red restringida). Detalle: ' + raw;
+  }
+  if (err instanceof TypeError || err instanceof ReferenceError || err instanceof SyntaxError) {
+    return 'Error interno de la app: ' + raw;
+  }
+  return raw;
+}
+
 /** Combina canciones de la nube con las locales. Devuelve {added, updated}. */
 function mergeCloudSongs(cloudSongs, { updateExisting = true } = {}) {
   let added = 0, updated = 0;
@@ -3006,8 +3018,7 @@ async function syncPush({ skipPull = false } = {}) {
   } catch (err) {
     console.error('[syncPush]', err);
     setSyncStatus('Error al subir', 'error');
-    const offline = err instanceof TypeError;
-    showToast(offline ? 'Sin conexión a internet o bloqueado por el navegador.' : err.message, 'error');
+    showToast(describeSyncError(err), 'error', 9000);
   }
 }
 
@@ -3043,8 +3054,7 @@ async function syncPull(silent = false) {
     console.error('[syncPull]', err);
     setSyncStatus('Error al traer', 'error');
     if (!silent) {
-      const offline = err instanceof TypeError;
-      showToast(offline ? 'Sin conexión a internet o bloqueado por el navegador.' : err.message, 'error');
+      showToast(describeSyncError(err), 'error', 9000);
     }
   }
 }
